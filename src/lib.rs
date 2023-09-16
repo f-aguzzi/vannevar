@@ -30,16 +30,30 @@ fn load_database() -> Result<Vec<Note>, std::io::Error> {
     })
     .flatten();
 
-    let notes = files_list.map(|p| {
-        fs::read(p)
-    })
-    .map(|f| {
-        match f {
-            Err(e) => None,
-            Ok(file) => Some(file)
+    let notes: Vec<_> = files_list.map(|p| {
+        match fs::read(p.clone()) {
+            Err(_) => None,
+            Ok(file) => Some((file, p))
         }
     })
-    .flatten();
+    .flatten()
+    .map(|f| {
+        let buf = std::str::from_utf8(f.0.as_slice());
+        let name = f.1.to_str()?;
 
-    Ok( Vec::new() )
+        if buf.is_ok() {
+            let buf = String::from(buf.unwrap());
+            let name = String::from(name);
+
+            return Some(Note {title: name, text: buf})
+        }
+
+        None
+    })
+    .flatten()
+    .collect();
+
+
+    Ok( notes )
+    
 }
