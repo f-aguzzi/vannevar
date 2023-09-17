@@ -85,6 +85,19 @@ The first few lines are an optional, hand-written description of the day.
 The remainder of the file stores the pages that have been added during the
 current day and the list is updated automatically.
 
+This is the standard format:
+
+```
+This is the (optional) description of the journal entry for the day. The date
+is contained in the file name, so this starts right from the description.
+Below is a line with three dashes, which separates the description from the
+list of pages added in the day.
+---
+[first note added today]
+[second note added today]
+[last note added today]
+```
+
 ## Trails
 
 Trails are stored in a trail subfolder.
