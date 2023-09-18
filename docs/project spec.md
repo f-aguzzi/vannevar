@@ -108,6 +108,8 @@ the reason why the pages are connected.
 Here is an example of the format:
 
 ```
+Trail description.
+---
 [page 1]
 (optional comment about page 1)
 ->

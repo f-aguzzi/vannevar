@@ -1,5 +1,5 @@
 use std::fs;
-
+use lazy_regex::regex;
 use chrono::Datelike;
 
 struct Note {
@@ -39,6 +39,7 @@ fn todays_date() -> String {
     date
 }
 
+#[derive(Debug)]
 pub struct Trail {
     description: String,
     hops: Vec<(String, String)>
@@ -165,6 +166,31 @@ fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
     journal
 }
 
+pub fn parse_trails(trail: &str) -> Trail {
+    let trail_matcher = regex!(r"(.*?)\n---");
+    let block_matcher = regex!(r#"\[(.*?)\]\n\((.*?)\)\n\->$"#m);
+    let link_matcher = regex!(r"\[(.*?)\]");
+    let description_matcher = regex!(r"\((.*?)\)");
+
+    let trail_description = trail_matcher.find(trail).unwrap().as_str();
+    let trail_description = trail_description.strip_suffix("\n---").unwrap();
+    println!("{}", trail_description);
+
+    let s: Vec<_> = block_matcher.find_iter(trail)
+        .map(|m| m.as_str())
+        .map(|x| -> (String, String) {
+
+        let link = link_matcher.find(x).unwrap().as_str();
+        let description = description_matcher.find(x).unwrap().as_str();
+
+        let link = &link[1..link.len() - 1];
+        let description = &description[1..description.len() - 1];
+
+        ( String::from(link), String::from(description) )
+        }).collect();
+
+    Trail { description: String::from(trail_description), hops: s }
+}
 
 // FIX ERROR HANDLING
 fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
@@ -186,3 +212,4 @@ fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
 
     Ok( Vec::new() )
 }
+
