@@ -39,8 +39,9 @@ fn todays_date() -> String {
     date
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Trail {
+    name: String,
     description: String,
     hops: Vec<(String, String)>
 }
@@ -74,8 +75,10 @@ impl Model {
     }
 }
 
-enum FileError {
+#[derive(Debug)]
+pub enum FileError {
     ReadError,
+    DescriptionError,
     EmptyFileError,
     FormatError,
 }
@@ -166,30 +169,57 @@ fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
     journal
 }
 
-pub fn parse_trails(trail: &str) -> Trail {
+pub fn parse_trails(title: String, trail: &str) -> Result<Trail, FileError> {
+    // Stop execution if file is empty
+    match trail.len() {
+        0 => return Err(FileError::EmptyFileError),
+        _ => { }
+    }
+
+    // Precompiled regex for trail processing
     let trail_matcher = regex!(r"(.*?)\n---");
     let block_matcher = regex!(r#"\[(.*?)\]\n\((.*?)\)\n\->$"#m);
     let link_matcher = regex!(r"\[(.*?)\]");
     let description_matcher = regex!(r"\((.*?)\)");
 
-    let trail_description = trail_matcher.find(trail).unwrap().as_str();
-    let trail_description = trail_description.strip_suffix("\n---").unwrap();
-    println!("{}", trail_description);
+    // Read description. If wrongly formatted, return error.
+    let trail_description = match trail_matcher.find(trail) {
+        // Remove trailing ---. If wrongly formatted, return error.
+        Some(s) => {
+            let buf = s.as_str()
+                .strip_suffix("\n---");
+            match buf {
+                Some(s) => String::from(s),
+                None => return Err(FileError::DescriptionError)
+            }
+        }
+        None => return Err(FileError::DescriptionError)
+    };
+   
+    // Capture and process
+    let s: Result<Vec<_>, FileError> = block_matcher.find_iter(trail)
+    .map(|m| m.as_str())
+    .map(|x| -> Result<(String, String), FileError> {
 
-    let s: Vec<_> = block_matcher.find_iter(trail)
-        .map(|m| m.as_str())
-        .map(|x| -> (String, String) {
-
-        let link = link_matcher.find(x).unwrap().as_str();
-        let description = description_matcher.find(x).unwrap().as_str();
-
+        let link = match link_matcher.find(x) {
+            Some(s) => s.as_str(),
+            None => return Err(FileError::FormatError)   
+        };
+        let description = match description_matcher.find(x) {
+            Some(s) => s.as_str(),
+            None => return Err(FileError::FormatError)
+        };
         let link = &link[1..link.len() - 1];
         let description = &description[1..description.len() - 1];
+        Ok( ( String::from(link), String::from(description) ) )
+    })
+    .collect();
 
-        ( String::from(link), String::from(description) )
-        }).collect();
-
-    Trail { description: String::from(trail_description), hops: s }
+    match s {
+        Ok(t) => Ok( Trail { name: title, description: trail_description, hops: t } ),
+        Err(e) => Err(e)
+    }
+    
 }
 
 // FIX ERROR HANDLING
@@ -200,16 +230,27 @@ fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
     };
 
     let trails = database.into_iter().map(|n| {
-
-        let parts = n.text.split("->").map(|s| {
-            let start_bytes = s.find("[").unwrap_or(0);             
-            let end_bytes = s.find("]").unwrap_or(s.len());
-
-            &s[start_bytes..end_bytes]
-        });
-
+        parse_trails(n.title, &n.text)
     });
 
     Ok( Vec::new() )
 }
 
+#[test]
+fn test_parse_trails() {
+    let title = String::from("Trail title");
+    let description = String::from("Trail description.");
+    let trail = "Trail description.\n---\n[link 1]\n(description 1)\n->\n[link 2]\n(description 2)\n->";
+
+    let test = parse_trails(title.clone(), trail);
+
+    let hop1 = (String::from("link 1"), String::from("description 1"));
+    let hop2 = (String::from("link 2"), String::from("description 2"));
+    let hops = vec![hop1, hop2];
+
+    let check = Trail { name: title, description: description, hops: hops};
+
+    println!("{:?}", test);
+
+    assert_eq!(test.unwrap(), check);
+}

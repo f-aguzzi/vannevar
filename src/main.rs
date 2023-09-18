@@ -4,6 +4,6 @@ mod lib;
 fn main() {
     println!("Hello, world!");
 
-    let test = parse_trails("Vitellorzo\n---\n[cane]\n(descrizione di cane)\n->\n[gatto]\n(descrizione di gatto)\n->");
+    let test = parse_trails(String::from("Vitellone"), "Vitellorzo\n---\n[cane]\n(descrizione di cane)\n->\n[gatto]\n(descrizione di gatto)\n->");
     println!("{:?}", test);
 }
