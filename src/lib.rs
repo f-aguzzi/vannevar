@@ -1,4 +1,4 @@
-use std::{fs, error::Error, fmt::Debug};
+use std::fs;
 
 use chrono::Datelike;
 
@@ -45,9 +45,10 @@ pub struct Trail {
 }
 
 pub struct Model {
+    current_date: String,
     notes: Vec<Note>,
     journal_pages: Vec<Journal>,
-    
+    trails: Vec<Trail>   
 }
 
 impl Model {
@@ -55,11 +56,16 @@ impl Model {
     // FIX ERROR HANDLING
     pub fn new() -> Model {
         Model {
+            current_date: todays_date(),
             notes: match load_database("../") {
                 Ok(v) => v,
                 Err(_) => Vec::new()
             },
             journal_pages: match load_journal("../journal/") {
+                Ok(v) => v,
+                Err(_) => Vec::new()
+            },
+            trails: match load_trails("../trails") {
                 Ok(v) => v,
                 Err(_) => Vec::new()
             }
@@ -69,10 +75,12 @@ impl Model {
 
 enum FileError {
     ReadError,
-    ProcessError,
+    EmptyFileError,
     FormatError,
 }
 
+
+// ADD EMPTY FILE ERROR TYPE
 fn load_database(path: &str) -> Result<Vec<Note>, FileError> {
 
     let files_list = match fs::read_dir(path) {
@@ -120,6 +128,7 @@ fn load_database(path: &str) -> Result<Vec<Note>, FileError> {
     
 }
 
+// FIX ERROR HANDLING, ADD EMPTY FILE CASE
 fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
 
     let database = match load_database(path) {
@@ -154,4 +163,26 @@ fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
     }).collect();
     
     journal
+}
+
+
+// FIX ERROR HANDLING
+fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
+    let database = match load_database(path) {
+        Ok(d) => d,
+        Err(_) => return Err(FileError::ReadError)
+    };
+
+    let trails = database.into_iter().map(|n| {
+
+        let parts = n.text.split("->").map(|s| {
+            let start_bytes = s.find("[").unwrap_or(0);             
+            let end_bytes = s.find("]").unwrap_or(s.len());
+
+            &s[start_bytes..end_bytes]
+        });
+
+    });
+
+    Ok( Vec::new() )
 }

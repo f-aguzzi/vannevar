@@ -104,3 +104,25 @@ Trails are stored in a trail subfolder.
 
 The trail stores a flat ordered list of page names, with optional comments on
 the reason why the pages are connected.
+
+Here is an example of the format:
+
+```
+[page 1]
+(optional comment about page 1)
+->
+[page 2]
+()
+->
+[page 3]
+(optional comment about page 3)
+->
+[page 4]
+()
+```
+
+The trail will be scanned until EOF, split at `->` signs and parsed with
+precompiled regex.
+
+Comments are inserted between parentheses, which are still present, but empty,
+in case of a missing comment.
