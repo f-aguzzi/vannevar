@@ -2,14 +2,20 @@ use std::fs;
 use lazy_regex::regex;
 use chrono::Datelike;
 
-struct Note {
+struct File {
     title: String,
     text: String,
 }
 
-impl Note {
-    fn new(t: String) -> Note {
-        Note {title: t, text: String::new() }
+struct Note {
+    title: String,
+    text: String,
+    links: Vec<String>
+}
+
+impl File {
+    fn new(t: String) -> File {
+        File {title: t, text: String::new() }
     }
 }
 
@@ -59,7 +65,7 @@ impl Model {
     pub fn new() -> Model {
         Model {
             current_date: todays_date(),
-            notes: match load_database("../") {
+            notes: match load_notes("../") {
                 Ok(v) => v,
                 Err(_) => Vec::new()
             },
@@ -91,7 +97,7 @@ pub enum TrailError {
 
 
 // ADD EMPTY FILE ERROR TYPE
-fn load_database(path: &str) -> Result<Vec<Note>, FileError> {
+fn load_database(path: &str) -> Result<Vec<File>, FileError> {
 
     let files_list = match fs::read_dir(path) {
         Err(e) => return Err(FileError::ReadError),
@@ -125,7 +131,7 @@ fn load_database(path: &str) -> Result<Vec<Note>, FileError> {
             let buf = String::from(buf.unwrap());
             let name = String::from(name);
 
-            return Some(Note {title: name, text: buf})
+            return Some(File {title: name, text: buf})
         }
 
         None
@@ -136,6 +142,28 @@ fn load_database(path: &str) -> Result<Vec<Note>, FileError> {
 
     Ok( notes )
     
+}
+
+fn load_notes(path: &str) -> Result<Vec<Note>, FileError> {
+    let database = match load_database(path) {
+        Ok(d) => d,
+        Err(_) => return Err(FileError::ReadError)
+    };
+
+    let links_matcher = regex!(r#"\[.+?\]"#m);
+
+    let notes = database.into_iter()
+    .map(|f| -> Note {
+        let matches: Vec<_> = links_matcher
+        .find_iter(&f.text)
+        .map(|m| String::from(m.as_str()))
+        .collect();
+
+        Note { title: f.title, text: f.text, links: matches }
+    })
+    .collect();
+
+    Ok(notes)
 }
 
 // FIX ERROR HANDLING, ADD EMPTY FILE CASE
