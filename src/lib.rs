@@ -78,9 +78,15 @@ impl Model {
 #[derive(Debug)]
 pub enum FileError {
     ReadError,
-    DescriptionError,
     EmptyFileError,
     FormatError,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TrailError {
+    DescriptionError,
+    EmptyFileError,
+    BodyFormatError,
 }
 
 
@@ -169,18 +175,18 @@ fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
     journal
 }
 
-pub fn parse_trails(title: String, trail: &str) -> Result<Trail, FileError> {
+pub fn parse_trails(title: String, trail: &str) -> Result<Trail, TrailError> {
     // Stop execution if file is empty
     match trail.len() {
-        0 => return Err(FileError::EmptyFileError),
+        0 => return Err(TrailError::EmptyFileError),
         _ => { }
     }
 
     // Precompiled regex for trail processing
     let trail_matcher = regex!(r"(.*?)\n---");
     let block_matcher = regex!(r#"\[(.*?)\]\n\((.*?)\)\n\->$"#m);
-    let link_matcher = regex!(r"\[(.*?)\]");
-    let description_matcher = regex!(r"\((.*?)\)");
+    let link_matcher = regex!(r"\[(.+?)\]");
+    let description_matcher = regex!(r"\((.+?)\)");
 
     // Read description. If wrongly formatted, return error.
     let trail_description = match trail_matcher.find(trail) {
@@ -190,24 +196,24 @@ pub fn parse_trails(title: String, trail: &str) -> Result<Trail, FileError> {
                 .strip_suffix("\n---");
             match buf {
                 Some(s) => String::from(s),
-                None => return Err(FileError::DescriptionError)
+                None => return Err(TrailError::DescriptionError)
             }
         }
-        None => return Err(FileError::DescriptionError)
+        None => return Err(TrailError::DescriptionError)
     };
    
     // Capture and process
-    let s: Result<Vec<_>, FileError> = block_matcher.find_iter(trail)
+    let s: Result<Vec<_>, TrailError> = block_matcher.find_iter(trail)
     .map(|m| m.as_str())
-    .map(|x| -> Result<(String, String), FileError> {
+    .map(|x| -> Result<(String, String), TrailError> {
 
         let link = match link_matcher.find(x) {
             Some(s) => s.as_str(),
-            None => return Err(FileError::FormatError)   
+            None => return Err(TrailError::BodyFormatError)  
         };
         let description = match description_matcher.find(x) {
             Some(s) => s.as_str(),
-            None => return Err(FileError::FormatError)
+            None => return Err(TrailError::BodyFormatError)
         };
         let link = &link[1..link.len() - 1];
         let description = &description[1..description.len() - 1];
@@ -238,6 +244,7 @@ fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
 
 #[test]
 fn test_parse_trails() {
+    // Correctly formatted string
     let title = String::from("Trail title");
     let description = String::from("Trail description.");
     let trail = "Trail description.\n---\n[link 1]\n(description 1)\n->\n[link 2]\n(description 2)\n->";
@@ -253,4 +260,28 @@ fn test_parse_trails() {
     println!("{:?}", test);
 
     assert_eq!(test.unwrap(), check);
+
+    // Incorrectly formatted description: only two dashes
+    let title = String::from("Trail title");
+    let trail = "Trail description.\n--\n[link 1]\n(description 1)\n->\n[link 2]\n(description 2)\n->";
+
+    let test = parse_trails(title, trail);
+
+    let check = Err(TrailError::DescriptionError);
+
+    println!("{:?}", test);
+
+    assert_eq!(test, check);
+
+    // Incorrectly formatted links and body: missing braces and arrows
+    let title = String::from("Trail title");
+    let trail = "Trail description.\n---\n[link 1]\n()\n->\n[link 2]\n(description 2)\n-";
+
+    let test = parse_trails(title, trail);
+
+    let check = Err(TrailError::BodyFormatError);
+
+    println!("{:?}", test);
+
+    assert_eq!(test, check);
 }
