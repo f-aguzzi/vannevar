@@ -7,15 +7,32 @@ struct File {
     text: String,
 }
 
+impl File {
+    fn new(t: String) -> File {
+        File {title: t, text: String::new() }
+    }
+}
+
 struct Note {
     title: String,
     text: String,
     links: Vec<String>
 }
 
-impl File {
-    fn new(t: String) -> File {
-        File {title: t, text: String::new() }
+impl Note {
+    fn from_str(name: &str, text: String) -> Note {
+        let links_matcher = regex!(r#"\[.+?\]"#m);
+
+        let matched_links: Vec<_> = links_matcher
+        .find_iter(text.as_str())
+        .map(|m| String::from(m.as_str()))
+        .collect();
+
+        Note {
+            title: String::from(name),
+            text: text,
+            links: matched_links
+        }
     }
 }
 
@@ -31,6 +48,29 @@ impl Journal {
             date: todays_date(),
             description: String::new(),
             pages: Vec::new() }
+    }
+
+    pub fn from_str(name: &str, text: &str) -> Result<Journal, FileError> {
+        let parts = text.split_once("---");
+        match parts {
+            Some((desc, list)) => {
+                let string_vec: Vec<_> = list.split('\n')
+                .map(|s| {
+                    let start_bytes = s.find("[").unwrap_or(0);   
+                    let end_bytes = s.find("]").unwrap_or(s.len());
+                    &s[start_bytes..end_bytes]
+                })
+                .map(|s| String::from(s))
+                .collect();
+                
+                Ok( Journal {
+                    date: String::from(name),
+                    description: String::from(desc),
+                    pages: string_vec
+                })
+            },
+            None => Err(FileError::FormatError)
+        }
     }
 }
 
@@ -94,6 +134,38 @@ pub enum TrailError {
     EmptyFileError,
     BodyFormatError,
 }
+
+// SINGLE PAGE LOADERS
+
+fn load_note(path: &str) -> Result<Note, FileError> {
+    let file:Vec<u8> = match fs::read(path) {
+        Ok(f) => f,
+        Err(_) => return Err(FileError::ReadError)
+    };
+
+    let file_string = match String::from_utf8(file) {
+        Ok(f) => f,
+        Err(_) => return Err(FileError::FormatError)
+    };
+
+    Ok( Note::from_str(path, file_string) )
+}
+
+fn load_journal_page(path: &str) -> Result<Journal, FileError> {
+    let file:Vec<u8> = match fs::read(path) {
+        Ok(f) => f,
+        Err(_) => return Err(FileError::ReadError)
+    };
+
+    let file_string = match String::from_utf8(file) {
+        Ok(f) => f,
+        Err(_) => return Err(FileError::FormatError)
+    };
+
+    Journal::from_str(path, &file_string)
+}
+
+
 
 
 // ADD EMPTY FILE ERROR TYPE

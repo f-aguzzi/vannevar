@@ -128,3 +128,29 @@ precompiled regex.
 
 Comments are inserted between parentheses, which are still present, but empty,
 in case of a missing comment.
+
+# MVC Pattern
+
+## Model
+
+The model contains structs to represent:
+- currently loaded data:
+  - the currently opened note / journal page / trail
+  - auxiliary data (while opening a trailed note, the trail itself)
+  - the current date (for timestamping journal pages)
+  - lists of the available links
+- lists of available data on disk
+  - notes
+  - journal pages
+  - trails
+
+## Controller
+
+The controller displays data from the model, keeps a list of available notes
+and valid links.
+
+The controller also contains the message enums to communicate with the view.
+
+## View
+
+The view will be a CLI.
