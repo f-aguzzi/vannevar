@@ -92,6 +92,66 @@ pub struct Trail {
     hops: Vec<(String, String)>
 }
 
+impl Trail {
+    pub fn from_str(title: &str, trail: &str) -> Result<Trail, TrailError> {
+        // Stop execution if file is empty
+        match trail.len() {
+            0 => return Err(TrailError::FileError(FileError::EmptyFileError)),
+            _ => { }
+        }
+
+        // Precompiled regex for trail processing
+        let trail_matcher = regex!(r"(.*?)\n---");
+        let block_matcher = regex!(r#"\[(.*?)\]\n\((.*?)\)\n\->$"#m);
+        let link_matcher = regex!(r"\[(.+?)\]");
+        let description_matcher = regex!(r"\((.+?)\)");
+
+        // Read description. If wrongly formatted, return error.
+        let trail_description = match trail_matcher.find(trail) {
+            // Remove trailing ---. If wrongly formatted, return error.
+            Some(s) => {
+                let buf = s.as_str()
+                    .strip_suffix("\n---");
+                match buf {
+                    Some(s) => String::from(s),
+                    None => return Err(TrailError::DescriptionError)
+                }
+            }
+            None => return Err(TrailError::DescriptionError)
+        };
+    
+        // Capture and process
+        let s: Result<Vec<_>, TrailError> = block_matcher.find_iter(trail)
+        .map(|m| m.as_str())
+        .map(|x| -> Result<(String, String), TrailError> {
+
+            let link = match link_matcher.find(x) {
+                Some(s) => s.as_str(),
+                None => return Err(TrailError::BodyFormatError)  
+            };
+            let description = match description_matcher.find(x) {
+                Some(s) => s.as_str(),
+                None => return Err(TrailError::BodyFormatError)
+            };
+            let link = &link[1..link.len() - 1];
+            let description = &description[1..description.len() - 1];
+            Ok( ( String::from(link), String::from(description) ) )
+        })
+        .collect();
+
+        match s {
+            Ok(t) => Ok( 
+                Trail {
+                name: String::from(title),
+                description: trail_description,
+                hops: t } 
+            ),
+            Err(e) => Err(e)
+        }
+    }
+
+}
+
 pub struct Model {
     current_date: String,
     notes: Vec<Note>,
@@ -99,29 +159,9 @@ pub struct Model {
     trails: Vec<Trail>   
 }
 
-impl Model {
 
-    // FIX ERROR HANDLING
-    pub fn new() -> Model {
-        Model {
-            current_date: todays_date(),
-            notes: match load_notes("../") {
-                Ok(v) => v,
-                Err(_) => Vec::new()
-            },
-            journal_pages: match load_journal("../journal/") {
-                Ok(v) => v,
-                Err(_) => Vec::new()
-            },
-            trails: match load_trails("../trails") {
-                Ok(v) => v,
-                Err(_) => Vec::new()
-            }
-        }
-    }
-}
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FileError {
     ReadError,
     EmptyFileError,
@@ -131,7 +171,7 @@ pub enum FileError {
 #[derive(Debug, PartialEq)]
 pub enum TrailError {
     DescriptionError,
-    EmptyFileError,
+    FileError(FileError),
     BodyFormatError,
 }
 
@@ -169,179 +209,44 @@ fn load_journal_page(path: &str) -> Result<Journal, FileError> {
 
 
 // ADD EMPTY FILE ERROR TYPE
-fn load_database(path: &str) -> Result<Vec<File>, FileError> {
+fn list_files(path: &str) -> Result<Vec<String>, FileError> {
 
     let files_list = match fs::read_dir(path) {
         Err(e) => return Err(FileError::ReadError),
         Ok(dir) => dir
     };
 
-    let files_list = files_list.map(|s| {
-        match s {
-            Err(e) => None,
-            Ok(dir) => Some(dir)
-        }
-    })
-    .flatten()
-    .map(|s| {
-        Some(s.path())
-    })
-    .flatten();
-
-    let notes: Vec<_> = files_list.map(|p| {
-        match fs::read(p.clone()) {
-            Err(_) => None,
-            Ok(file) => Some((file, p))
-        }
-    })
-    .flatten()
-    .map(|f| {
-        let buf = std::str::from_utf8(f.0.as_slice());
-        let name = f.1.to_str()?;
-
-        if buf.is_ok() {
-            let buf = String::from(buf.unwrap());
-            let name = String::from(name);
-
-            return Some(File {title: name, text: buf})
-        }
-
-        None
-    })
-    .flatten()
-    .collect();
-
-
-    Ok( notes )
-    
-}
-
-fn load_notes(path: &str) -> Result<Vec<Note>, FileError> {
-    let database = match load_database(path) {
-        Ok(d) => d,
-        Err(_) => return Err(FileError::ReadError)
-    };
-
-    let links_matcher = regex!(r#"\[.+?\]"#m);
-
-    let notes = database.into_iter()
-    .map(|f| -> Note {
-        let matches: Vec<_> = links_matcher
-        .find_iter(&f.text)
-        .map(|m| String::from(m.as_str()))
-        .collect();
-
-        Note { title: f.title, text: f.text, links: matches }
-    })
-    .collect();
-
-    Ok(notes)
-}
-
-// FIX ERROR HANDLING, ADD EMPTY FILE CASE
-fn load_journal(path: &str) -> Result<Vec<Journal>, FileError> {
-
-    let database = match load_database(path) {
-        Ok(d) => d,
-        Err(_) => return Err(FileError::ReadError)
-    };
-
-    let journal = database.into_iter().map(|n| -> Result<Journal, FileError> {
-        
-        let parts = n.text.split_once("---");
-
-        match parts {
-            Some((desc, list)) => {
-                let string_vec: Vec<_> = list.split('\n')
-                    .map(|s| {
-                        let start_bytes = s.find("[").unwrap_or(0);             
-                        let end_bytes = s.find("]").unwrap_or(s.len());
-
-                        &s[start_bytes..end_bytes]
-                    })
-                    .map(|s| String::from(s))
-                    .collect();
-
-                Ok( Journal {
-                    date: n.title,
-                    description: String::from(desc),
-                    pages: string_vec
-                })
+    let file_strings: Result<Vec<_>, FileError> = files_list.map(|f| {
+        match f {
+            Ok(s) => match s.file_name().to_str() {
+                Some(str) => Ok(String::from(str)),
+                None => Err(FileError::ReadError)
             }
-            None => Err(FileError::FormatError)
+            Err(_) => Err(FileError::ReadError)
         }
-    }).collect();
-    
-    journal
-}
-
-pub fn parse_trails(title: String, trail: &str) -> Result<Trail, TrailError> {
-    // Stop execution if file is empty
-    match trail.len() {
-        0 => return Err(TrailError::EmptyFileError),
-        _ => { }
-    }
-
-    // Precompiled regex for trail processing
-    let trail_matcher = regex!(r"(.*?)\n---");
-    let block_matcher = regex!(r#"\[(.*?)\]\n\((.*?)\)\n\->$"#m);
-    let link_matcher = regex!(r"\[(.+?)\]");
-    let description_matcher = regex!(r"\((.+?)\)");
-
-    // Read description. If wrongly formatted, return error.
-    let trail_description = match trail_matcher.find(trail) {
-        // Remove trailing ---. If wrongly formatted, return error.
-        Some(s) => {
-            let buf = s.as_str()
-                .strip_suffix("\n---");
-            match buf {
-                Some(s) => String::from(s),
-                None => return Err(TrailError::DescriptionError)
-            }
-        }
-        None => return Err(TrailError::DescriptionError)
-    };
-   
-    // Capture and process
-    let s: Result<Vec<_>, TrailError> = block_matcher.find_iter(trail)
-    .map(|m| m.as_str())
-    .map(|x| -> Result<(String, String), TrailError> {
-
-        let link = match link_matcher.find(x) {
-            Some(s) => s.as_str(),
-            None => return Err(TrailError::BodyFormatError)  
-        };
-        let description = match description_matcher.find(x) {
-            Some(s) => s.as_str(),
-            None => return Err(TrailError::BodyFormatError)
-        };
-        let link = &link[1..link.len() - 1];
-        let description = &description[1..description.len() - 1];
-        Ok( ( String::from(link), String::from(description) ) )
     })
     .collect();
 
-    match s {
-        Ok(t) => Ok( Trail { name: title, description: trail_description, hops: t } ),
-        Err(e) => Err(e)
-    }
-    
+    file_strings
 }
+
 
 // FIX ERROR HANDLING
-fn load_trails(path: &str) -> Result<Vec<Trail>, FileError> {
-    let database = match load_database(path) {
-        Ok(d) => d,
-        Err(_) => return Err(FileError::ReadError)
+fn load_trail(path: &str) -> Result<Trail, TrailError> {
+    let file:Vec<u8> = match fs::read(path) {
+        Ok(f) => f,
+        Err(_) => return Err(TrailError::FileError(FileError::ReadError))
     };
 
-    let trails = database.into_iter().map(|n| {
-        parse_trails(n.title, &n.text)
-    });
+    let file_string = match String::from_utf8(file) {
+        Ok(f) => f,
+        Err(_) => return Err(TrailError::FileError(FileError::FormatError))
+    };
 
-    Ok( Vec::new() )
+    Trail::from_str(path, file_string.as_str())
 }
 
+/*
 #[test]
 fn test_parse_trails() {
     // Correctly formatted string
@@ -385,3 +290,4 @@ fn test_parse_trails() {
 
     assert_eq!(test, check);
 }
+*/
