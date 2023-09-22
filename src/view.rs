@@ -1,5 +1,6 @@
 extern crate termion;
 
+use termion::cursor::DetectCursorPos;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -8,6 +9,18 @@ use termion::{clear, color, cursor, style, terminal_size};
 use std::io::{stdin, stdout, Write};
 
 use crate::lib::{Journal, Note, Trail};
+
+pub enum Message {
+    Save(String),
+    EditDescription,
+    AddPage,
+    SelectLinks,
+    EditLinks,
+    GotoLink(String),
+    Menu,
+    Exit,
+    Back,
+}
 
 pub fn start_page() {
     let mut stdout = stdout().into_raw_mode().unwrap();
@@ -51,7 +64,7 @@ pub fn start_page() {
     }
 }
 
-pub fn display_journal(page: &Journal) {
+pub fn display_journal(page: &Journal) -> Message {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -108,6 +121,22 @@ pub fn display_journal(page: &Journal) {
     }
 
     stdout.flush().unwrap();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                'd' | 'D' => return Message::EditDescription,
+                'e' | 'E' => return Message::EditLinks,
+                'm' | 'M' => return Message::Menu,
+                'l' | 'L' => return Message::SelectLinks,
+                'q' | 'Q' => return Message::Exit,
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    Message::Exit
 }
 
 pub fn select_create_journal() -> bool {
@@ -153,7 +182,7 @@ pub fn select_create_journal() -> bool {
     choice
 }
 
-pub fn link_menu(list: Vec<String>) -> String {
+pub fn link_menu(list: &Vec<String>) -> Message {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -207,17 +236,19 @@ pub fn link_menu(list: Vec<String>) -> String {
         match c.unwrap() {
             Key::Char(c) => match c {
                 '\n' => break,
+                'q' | 'Q' => return Message::Exit,
                 _ => {
                     StrBuf.push(c);
                     write!(stdout, "{}", c).unwrap();
                     stdout.flush().unwrap();
                 }
             },
+            Key::Esc => return Message::Back,
             _ => {}
         }
     }
 
-    StrBuf
+    Message::GotoLink(StrBuf)
 }
 
 pub fn display_note(page: &Note) {
@@ -348,4 +379,106 @@ pub fn display_menu() {
             _ => break,
         }
     }
+}
+
+pub fn edit_journal_description(desc: &String) -> String {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{goto}{clear}{show_cursor}{desc}",
+        goto = cursor::Goto(1, 1),
+        clear = clear::All,
+        desc = desc,
+        show_cursor = cursor::Show
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let mut new_desc = desc.clone();
+    let mut pointer = new_desc.len();
+
+    let (mut _cur_x, cur_y) = stdout.cursor_pos().unwrap();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => {
+                if new_desc.chars().count() == pointer {
+                    new_desc.push(c);
+                } else {
+                    let mut part1: String = new_desc
+                        .chars()
+                        .enumerate()
+                        .filter(|(i, s)| *i < pointer)
+                        .map(|(_i, s)| s)
+                        .collect();
+                    let part2: String = new_desc
+                        .chars()
+                        .enumerate()
+                        .filter(|(i, s)| *i >= pointer)
+                        .map(|(_i, s)| s)
+                        .collect();
+                    part1.push(c);
+                    part1.push_str(&part2);
+                    new_desc = part1;
+                }
+                pointer += 1;
+            }
+            Key::Esc => break,
+            Key::Backspace => {
+                if pointer == new_desc.chars().count() && new_desc.chars().count() != 0 {
+                    new_desc.pop();
+                    pointer -= 1;
+                } else if new_desc.chars().count() == 0 {
+                    new_desc.pop();
+                } else {
+                    new_desc = new_desc
+                        .chars()
+                        .enumerate()
+                        .map(|(i, s)| if i != pointer { Some(s) } else { None })
+                        .flatten()
+                        .collect();
+                    pointer -= 1;
+                }
+            }
+            Key::Left => {
+                if pointer > 0 {
+                    pointer -= 1;
+                }
+            }
+            Key::Right => {
+                if pointer < new_desc.chars().count() {
+                    pointer += 1;
+                }
+            }
+            _ => {}
+        }
+        write!(
+            stdout,
+            "{goto}{clear}{desc}",
+            goto = cursor::Goto(1, 1),
+            clear = clear::All,
+            desc = new_desc
+        )
+        .unwrap();
+
+        write!(
+            stdout,
+            "{}",
+            cursor::Goto(
+                (pointer as u16 + 1) % terminal_size().unwrap().0,
+                cur_y + pointer as u16 / terminal_size().unwrap().0
+            )
+        )
+        .unwrap();
+        stdout.flush().unwrap();
+    }
+
+    new_desc
+}
+
+pub fn edit_note(text: &String) -> String {
+    todo!();
 }

@@ -9,7 +9,14 @@ pub struct Note {
 }
 
 impl Note {
-    fn from_str(name: &str, text: String) -> Note {
+    fn new() -> Note {
+        Note {
+            title: String::new(),
+            text: String::new(),
+            links: Vec::new()
+        }
+    }
+    pub fn from_str(name: &str, text: String) -> Note {
         let links_matcher = regex!(r#"\[.+?\]"#m);
 
         let matched_links: Vec<_> = links_matcher
@@ -23,6 +30,10 @@ impl Note {
             links: matched_links,
         }
     }
+    pub fn save(&self) -> bool {
+        todo!();
+    }
+
 }
 
 #[derive(Clone)]
@@ -89,6 +100,13 @@ pub struct Trail {
 }
 
 impl Trail {
+    pub fn new() -> Trail {
+        Trail {
+            name: String::new(),
+            description: String::new(),
+            hops: Vec::new() 
+        }
+    }
     pub fn from_str(title: &str, trail: &str) -> Result<Trail, TrailError> {
         // Stop execution if file is empty
         match trail.len() {
@@ -147,9 +165,9 @@ impl Trail {
 
 pub struct Model {
     pub current_date: String,
-    pub notes: Vec<Note>,
+    pub note: Note,
     pub journal_page: Journal,
-    pub trails: Vec<Trail>,
+    pub trail: Trail,
 }
 
 impl Model {
@@ -161,9 +179,9 @@ impl Model {
 
         Model {
             current_date: todays_date(),
-            notes: Vec::new(),
+            note: Note::new(),
             journal_page: j,
-            trails: Vec::new(),
+            trail: Trail::new(),
         }
     }
 }
@@ -184,7 +202,7 @@ pub enum TrailError {
 
 // SINGLE PAGE LOADERS
 
-fn load_note(path: &str) -> Result<Note, FileError> {
+pub fn load_note(path: &str) -> Result<Note, FileError> {
     let file: Vec<u8> = match fs::read(path) {
         Ok(f) => f,
         Err(_) => return Err(FileError::ReadError),
