@@ -13,7 +13,7 @@ impl Note {
         Note {
             title: String::new(),
             text: String::new(),
-            links: Vec::new()
+            links: Vec::new(),
         }
     }
     pub fn from_str(name: &str, text: String) -> Note {
@@ -22,6 +22,12 @@ impl Note {
         let matched_links: Vec<_> = links_matcher
             .find_iter(text.as_str())
             .map(|m| String::from(m.as_str()))
+            .map(|s| {
+                let mut q = s;
+                q.remove(0);
+                q.pop();
+                q
+            })
             .collect();
 
         Note {
@@ -30,10 +36,26 @@ impl Note {
             links: matched_links,
         }
     }
-    pub fn save(&self) -> bool {
-        todo!();
+    pub fn parse_links(&mut self) {
+        let link_matcher = regex!(r"\[(.+?)\]");
+        let mut matches: Vec<_> = link_matcher
+            .find_iter(&self.text)
+            .map(|s| String::from(s.as_str()))
+            .map(|s| {
+                let mut q = s;
+                q.remove(0);
+                q.pop();
+                q
+            })
+            .collect();
+        self.links = matches;
     }
-
+    pub fn save(&self) -> bool {
+        match fs::write(&self.title, &self.text) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -82,6 +104,16 @@ impl Journal {
             None => Err(FileError::FormatError),
         }
     }
+    pub fn save(&self) -> bool {
+        let mut stringified_body = format!("{}\n---\n", self.description);
+        for l in &self.pages {
+            stringified_body.push_str(&format!("[{}]\n", l));
+        }
+        match fs::write(&self.date, stringified_body) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
 
 fn todays_date() -> String {
@@ -104,7 +136,7 @@ impl Trail {
         Trail {
             name: String::new(),
             description: String::new(),
-            hops: Vec::new() 
+            hops: Vec::new(),
         }
     }
     pub fn from_str(title: &str, trail: &str) -> Result<Trail, TrailError> {

@@ -4,7 +4,7 @@ use termion::cursor::DetectCursorPos;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use termion::{clear, color, cursor, style, terminal_size};
+use termion::{clear, color, cursor, scroll, style, terminal_size};
 
 use std::io::{stdin, stdout, Write};
 
@@ -20,6 +20,7 @@ pub enum Message {
     Menu,
     Exit,
     Back,
+    Edit,
 }
 
 pub fn start_page() {
@@ -251,7 +252,7 @@ pub fn link_menu(list: &Vec<String>) -> Message {
     Message::GotoLink(StrBuf)
 }
 
-pub fn display_note(page: &Note) {
+pub fn display_note(page: &Note) -> Message {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -276,6 +277,24 @@ pub fn display_note(page: &Note) {
         text = page.text
     )
     .unwrap();
+
+    stdout.flush().unwrap();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                'e' | 'E' => return Message::Edit,
+                'l' | 'L' => return Message::SelectLinks,
+                'm' | 'M' => return Message::Menu,
+                'q' | 'Q' => return Message::Exit,
+                _ => {}
+            },
+            Key::Esc => return Message::Back,
+            _ => {}
+        }
+    }
+
+    Message::Back
 }
 
 pub fn display_trail(page: &Trail) {
@@ -339,7 +358,14 @@ pub fn display_trail(page: &Trail) {
     }
 }
 
-pub fn display_menu() {
+pub enum MenuOption {
+    Journal,
+    Notes,
+    Trails,
+    Quit,
+}
+
+pub fn display_menu() -> MenuOption {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -350,7 +376,7 @@ pub fn display_menu() {
         cursor = cursor::Hide,
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 5,
-            terminal_size().unwrap().1 / 2 - 2
+            terminal_size().unwrap().1 / 2 - 4
         ),
         red = color::Fg(color::Red),
         bold = style::Bold,
@@ -361,7 +387,33 @@ pub fn display_menu() {
 
     write!(
         stdout,
-        "{goto}{white}Press any key to continue.{reset}",
+        "{goto}{white}Select an option and press enter.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 16,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(j) Open today's journal.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 12,
+            terminal_size().unwrap().1 / 2
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(n) Open or write a note.{reset}",
         // Goto the cell.
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 13,
@@ -372,13 +424,49 @@ pub fn display_menu() {
     )
     .unwrap();
 
+    write!(
+        stdout,
+        "{goto}{white}(t) Open or write a trail.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 4
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(q) Quit.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 4,
+            terminal_size().unwrap().1 / 2 + 6
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
     stdout.flush().unwrap();
 
-    for c in stdin.keys() {
-        match c.unwrap() {
-            _ => break,
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                'j' | 'J' => return MenuOption::Journal,
+                'n' | 'N' => return MenuOption::Notes,
+                't' | 'T' => return MenuOption::Trails,
+                'q' | 'Q' => return MenuOption::Quit,
+                _ => {}
+            },
+            Key::Esc => return MenuOption::Quit,
+            _ => {}
         }
     }
+
+    MenuOption::Quit
 }
 
 pub fn edit_journal_description(desc: &String) -> String {
@@ -480,5 +568,183 @@ pub fn edit_journal_description(desc: &String) -> String {
 }
 
 pub fn edit_note(text: &String) -> String {
-    todo!();
+    edit_journal_description(text)
+}
+
+pub fn save_error(text: &str) {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{cursor}{goto}{red}{bold}ERROR{reset_color}{reset_style}",
+        clear = clear::All,
+        cursor = cursor::Hide,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 2,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        red = color::Fg(color::Red),
+        bold = style::Bold,
+        reset_color = color::Fg(color::Reset),
+        reset_style = style::Reset
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}Could not save {name}.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 2
+        ),
+        white = color::Fg(color::White),
+        name = text,
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}Press any key to continue.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 4
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    for c in stdin.keys() {
+        match c.unwrap() {
+            _ => break,
+        }
+    }
+}
+
+pub fn add_journal_link() -> String {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{cursor}{goto}{red}{bold}CREATE NEW NOTE{reset_color}{reset_style}",
+        clear = clear::All,
+        cursor = cursor::Hide,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 8,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        red = color::Fg(color::Red),
+        bold = style::Bold,
+        reset_color = color::Fg(color::Reset),
+        reset_style = style::Reset
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{bold}Page name: {reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 2
+        ),
+        bold = style::Bold,
+        reset = style::Reset
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let mut buf = String::new();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                '\n' => return buf,
+                _ => buf.push(c),
+            },
+            Key::Backspace => {
+                buf.pop();
+            }
+            Key::Esc => return String::new(),
+            _ => {}
+        }
+
+        write!(
+            stdout,
+            "{goto}{bold}Page name: {reset}{name}",
+            // Goto the cell.
+            goto = cursor::Goto(
+                terminal_size().unwrap().0 / 2 - 13,
+                terminal_size().unwrap().1 / 2 + 2
+            ),
+            bold = style::Bold,
+            reset = style::Reset,
+            name = buf
+        )
+        .unwrap();
+
+        write!(stdout, "{}", clear::AfterCursor).unwrap();
+
+        stdout.flush().unwrap();
+    }
+
+    String::new()
+}
+
+pub fn select_create_note(title: &str) -> bool {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{goto}The note for {name} does not exist.",
+        clear = clear::All,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 21,
+            terminal_size().unwrap().1 / 2
+        ),
+        name = title
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}Create it? (y/n)",
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 8,
+            terminal_size().unwrap().1 / 2 + 1
+        )
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let choice: bool = false;
+
+    for c in stdin.keys() {
+        match c.unwrap() {
+            Key::Char(c) => match c {
+                'y' | 'Y' => return true,
+                'n' | 'N' => return false,
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    choice
+}
+
+pub fn reset_cursor() {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    write!(stdout, "{}", cursor::Show).unwrap();
+    stdout.flush().unwrap();
 }
