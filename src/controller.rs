@@ -168,11 +168,13 @@ impl Controller {
                     self.model.note = Note::from_str(&self.model.note.title, note_text);
                     self.current_page = CurrentPage::NoteView;
                 }
-                CurrentPage::SelectCreateTrail => {
-                    match select_create_trail() {
-                        CreateTrailMessage::CreateTrail => self.current_page = CurrentPage::CreateNewTrail,
-                        CreateTrailMessage::LoadTrail => self.current_page = CurrentPage::LoadTrail,
-                        CreateTrailMessage::ReturnToJournal => self.current_page = CurrentPage::JournalView
+                CurrentPage::SelectCreateTrail => match select_create_trail() {
+                    CreateTrailMessage::CreateTrail => {
+                        self.current_page = CurrentPage::CreateNewTrail
+                    }
+                    CreateTrailMessage::LoadTrail => self.current_page = CurrentPage::LoadTrail,
+                    CreateTrailMessage::ReturnToJournal => {
+                        self.current_page = CurrentPage::JournalView
                     }
                 },
                 CurrentPage::CreateNewTrail => {
@@ -185,17 +187,15 @@ impl Controller {
                             self.current_page = CurrentPage::TrailView;
                         }
                     }
-                },
-                CurrentPage::LoadTrail => {},
-                CurrentPage::TrailView => {
-                    match self.model.trail.name.len() {
-                        0 => self.current_page = CurrentPage::SelectCreateTrail,
-                        _ => {
-                            display_trail(&self.model.trail);
-                            todo!();
-                        }
-                    }
                 }
+                CurrentPage::LoadTrail => {}
+                CurrentPage::TrailView => match self.model.trail.name.len() {
+                    0 => self.current_page = CurrentPage::SelectCreateTrail,
+                    _ => {
+                        display_trail(&self.model.trail);
+                        todo!();
+                    }
+                },
                 CurrentPage::TrailEditDescription => {
                     self.model.trail.description =
                         edit_trail_description(&self.model.trail.description);
@@ -205,7 +205,12 @@ impl Controller {
                     let (name, desc) = add_trail_hop();
                     match name.len() {
                         0 => {}
-                        _ => match self.model.trail.hops.binary_search(&(name.clone(), desc.clone())) {
+                        _ => match self
+                            .model
+                            .trail
+                            .hops
+                            .binary_search(&(name.clone(), desc.clone()))
+                        {
                             Ok(_) => {}
                             Err(_) => {
                                 self.model.trail.hops.push((name, desc));

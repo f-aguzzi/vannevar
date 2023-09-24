@@ -299,7 +299,7 @@ pub fn display_note(page: &Note) -> Message {
 
 pub enum TrailMessage {
     ShowTrail,
-    SelectLink
+    SelectLink,
 }
 
 pub fn display_trail(page: &Trail) {
@@ -376,7 +376,7 @@ pub fn display_trail(page: &Trail) {
 pub enum CreateTrailMessage {
     CreateTrail,
     LoadTrail,
-    ReturnToJournal
+    ReturnToJournal,
 }
 
 pub fn select_create_trail() -> CreateTrailMessage {
