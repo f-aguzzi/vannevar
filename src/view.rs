@@ -297,6 +297,11 @@ pub fn display_note(page: &Note) -> Message {
     Message::Back
 }
 
+pub enum TrailMessage {
+    ShowTrail,
+    SelectLink
+}
+
 pub fn display_trail(page: &Trail) {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
@@ -332,6 +337,8 @@ pub fn display_trail(page: &Trail) {
     )
     .unwrap();
 
+    stdout.flush().unwrap();
+
     for (i, x) in page.hops.iter().enumerate() {
         let line_number = (x.1.len() + x.0.len()) as u16 / terminal_size().unwrap().0;
 
@@ -356,6 +363,72 @@ pub fn display_trail(page: &Trail) {
         )
         .unwrap();
     }
+
+    stdout.flush().unwrap();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            _ => {}
+        }
+    }
+}
+
+pub enum CreateTrailMessage {
+    CreateTrail,
+    LoadTrail,
+    ReturnToJournal
+}
+
+pub fn select_create_trail() -> CreateTrailMessage {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{goto}There is no trail currently loaded.",
+        clear = clear::All,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 18,
+            terminal_size().unwrap().1 / 2
+        )
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}(c) Create one.",
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 7,
+            terminal_size().unwrap().1 / 2 + 1
+        )
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}(l) Load one.",
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 6,
+            terminal_size().unwrap().1 / 2 + 2
+        )
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    for c in stdin.keys() {
+        match c.unwrap() {
+            Key::Char(c) => match c {
+                'c' | 'C' => return CreateTrailMessage::CreateTrail,
+                'l' | 'L' => return CreateTrailMessage::LoadTrail,
+                'j' | 'J' => return CreateTrailMessage::ReturnToJournal,
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    CreateTrailMessage::ReturnToJournal
 }
 
 pub enum MenuOption {
@@ -469,40 +542,40 @@ pub fn display_menu() -> MenuOption {
     MenuOption::Quit
 }
 
-pub fn edit_journal_description(desc: &String) -> String {
+pub fn text_editor(text: &String) -> String {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
     write!(
         stdout,
-        "{goto}{clear}{show_cursor}{desc}",
+        "{goto}{clear}{show_cursor}{text}",
         goto = cursor::Goto(1, 1),
         clear = clear::All,
-        desc = desc,
+        text = text,
         show_cursor = cursor::Show
     )
     .unwrap();
 
     stdout.flush().unwrap();
 
-    let mut new_desc = desc.clone();
-    let mut pointer = new_desc.len();
+    let mut new_text = text.clone();
+    let mut pointer = new_text.len();
 
     let (mut _cur_x, cur_y) = stdout.cursor_pos().unwrap();
 
     for k in stdin.keys() {
         match k.unwrap() {
             Key::Char(c) => {
-                if new_desc.chars().count() == pointer {
-                    new_desc.push(c);
+                if new_text.chars().count() == pointer {
+                    new_text.push(c);
                 } else {
-                    let mut part1: String = new_desc
+                    let mut part1: String = new_text
                         .chars()
                         .enumerate()
                         .filter(|(i, s)| *i < pointer)
                         .map(|(_i, s)| s)
                         .collect();
-                    let part2: String = new_desc
+                    let part2: String = new_text
                         .chars()
                         .enumerate()
                         .filter(|(i, s)| *i >= pointer)
@@ -510,19 +583,19 @@ pub fn edit_journal_description(desc: &String) -> String {
                         .collect();
                     part1.push(c);
                     part1.push_str(&part2);
-                    new_desc = part1;
+                    new_text = part1;
                 }
                 pointer += 1;
             }
             Key::Esc => break,
             Key::Backspace => {
-                if pointer == new_desc.chars().count() && new_desc.chars().count() != 0 {
-                    new_desc.pop();
+                if pointer == new_text.chars().count() && new_text.chars().count() != 0 {
+                    new_text.pop();
                     pointer -= 1;
-                } else if new_desc.chars().count() == 0 {
-                    new_desc.pop();
+                } else if new_text.chars().count() == 0 {
+                    new_text.pop();
                 } else {
-                    new_desc = new_desc
+                    new_text = new_text
                         .chars()
                         .enumerate()
                         .map(|(i, s)| if i != pointer { Some(s) } else { None })
@@ -537,7 +610,7 @@ pub fn edit_journal_description(desc: &String) -> String {
                 }
             }
             Key::Right => {
-                if pointer < new_desc.chars().count() {
+                if pointer < new_text.chars().count() {
                     pointer += 1;
                 }
             }
@@ -545,10 +618,10 @@ pub fn edit_journal_description(desc: &String) -> String {
         }
         write!(
             stdout,
-            "{goto}{clear}{desc}",
+            "{goto}{clear}{text}",
             goto = cursor::Goto(1, 1),
             clear = clear::All,
-            desc = new_desc
+            text = new_text
         )
         .unwrap();
 
@@ -564,11 +637,15 @@ pub fn edit_journal_description(desc: &String) -> String {
         stdout.flush().unwrap();
     }
 
-    new_desc
+    new_text
+}
+
+pub fn edit_journal_description(desc: &String) -> String {
+    text_editor(desc)
 }
 
 pub fn edit_note(text: &String) -> String {
-    edit_journal_description(text)
+    text_editor(text)
 }
 
 pub fn save_error(text: &str) {
@@ -747,4 +824,208 @@ pub fn reset_cursor() {
     let mut stdout = stdout().into_raw_mode().unwrap();
     write!(stdout, "{}", cursor::Show).unwrap();
     stdout.flush().unwrap();
+}
+
+pub fn create_new_trail() -> String {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{cursor}{goto}{red}{bold}CREATE NEW TRAIL{reset_color}{reset_style}",
+        clear = clear::All,
+        cursor = cursor::Hide,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 8,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        red = color::Fg(color::Red),
+        bold = style::Bold,
+        reset_color = color::Fg(color::Reset),
+        reset_style = style::Reset
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{bold}Trail name: {reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 2
+        ),
+        bold = style::Bold,
+        reset = style::Reset
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let mut buf = String::new();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                '\n' => return buf,
+                _ => buf.push(c),
+            },
+            Key::Backspace => {
+                buf.pop();
+            }
+            Key::Esc => return String::new(),
+            _ => {}
+        }
+
+        write!(
+            stdout,
+            "{goto}{bold}Trail name: {reset}{name}",
+            // Goto the cell.
+            goto = cursor::Goto(
+                terminal_size().unwrap().0 / 2 - 13,
+                terminal_size().unwrap().1 / 2 + 2
+            ),
+            bold = style::Bold,
+            reset = style::Reset,
+            name = buf
+        )
+        .unwrap();
+
+        write!(stdout, "{}", clear::AfterCursor).unwrap();
+
+        stdout.flush().unwrap();
+    }
+
+    String::new()
+}
+
+pub fn edit_trail_description(desc: &String) -> String {
+    edit_journal_description(desc)
+}
+
+pub fn add_trail_hop() -> (String, String) {
+    /*
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    write!(
+        stdout,
+        "{clear}{cursor}{goto}{red}{bold}CREATE NEW HOP{reset_color}{reset_style}",
+        clear = clear::All,
+        cursor = cursor::Hide,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 7,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        red = color::Fg(color::Red),
+        bold = style::Bold,
+        reset_color = color::Fg(color::Reset),
+        reset_style = style::Reset
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{bold}Hop name: {reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 2
+        ),
+        bold = style::Bold,
+        reset = style::Reset
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let mut name_buf = String::new();
+
+    let keys = stdin.keys();
+
+    for k in keys.into_iter() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                '\n' => break,
+                _ => name_buf.push(c),
+            },
+            Key::Backspace => {
+                name_buf.pop();
+            }
+            Key::Esc => return (String::new(), String::new()),
+            _ => {}
+        }
+
+        write!(
+            stdout,
+            "{goto}{bold}Hop name: {reset}{name}",
+            // Goto the cell.
+            goto = cursor::Goto(
+                terminal_size().unwrap().0 / 2 - 13,
+                terminal_size().unwrap().1 / 2 + 2
+            ),
+            bold = style::Bold,
+            reset = style::Reset,
+            name = name_buf
+        )
+        .unwrap();
+
+        write!(stdout, "{}", clear::AfterCursor).unwrap();
+
+        stdout.flush().unwrap();
+    }
+
+    write!(
+        stdout,
+        "{goto}{bold}Hop description: {reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 2
+        ),
+        bold = style::Bold,
+        reset = style::Reset
+    )
+    .unwrap();
+
+    stdout.flush().unwrap();
+
+    let mut desc_buf = String::new();
+
+
+    for k in keys {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                '\n' => break,
+                _ => desc_buf.push(c),
+            },
+            Key::Backspace => {
+                desc_buf.pop();
+            }
+            Key::Esc => return (String::new(), String::new()),
+            _ => {}
+        }
+
+        write!(
+            stdout,
+            "{goto}{bold}Hop description: {reset}{desc}",
+            // Goto the cell.
+            goto = cursor::Goto(
+                terminal_size().unwrap().0 / 2 - 16,
+                terminal_size().unwrap().1 / 2 + 2
+            ),
+            bold = style::Bold,
+            reset = style::Reset,
+            desc = desc_buf
+        )
+        .unwrap();
+
+        write!(stdout, "{}", clear::AfterCursor).unwrap();
+
+        stdout.flush().unwrap();
+    }
+
+    (name_buf, desc_buf)
+    */
+
+    todo!();
 }

@@ -12,9 +12,12 @@ pub enum CurrentPage {
     SelectLink(Vec<String>),
     NoteView,
     NoteEdit,
+    SelectCreateTrail,
+    CreateNewTrail,
+    LoadTrail,
     TrailView,
     TrailEditDescription,
-    TrailEditHop,
+    TrailAddHop,
     SaveError(Box<CurrentPage>),
 }
 pub struct Controller {
@@ -45,7 +48,9 @@ impl Controller {
                         _ => self.current_page = CurrentPage::JournalView,
                     },
                     MenuOption::Notes => {}
-                    MenuOption::Trails => {}
+                    MenuOption::Trails => {
+                        self.current_page = CurrentPage::TrailView;
+                    }
                     MenuOption::Quit => return,
                 },
                 CurrentPage::CreateNewJournal => match select_create_journal() {
@@ -163,9 +168,52 @@ impl Controller {
                     self.model.note = Note::from_str(&self.model.note.title, note_text);
                     self.current_page = CurrentPage::NoteView;
                 }
-                CurrentPage::TrailView => {}
-                CurrentPage::TrailEditDescription => {}
-                CurrentPage::TrailEditHop => {}
+                CurrentPage::SelectCreateTrail => {
+                    match select_create_trail() {
+                        CreateTrailMessage::CreateTrail => self.current_page = CurrentPage::CreateNewTrail,
+                        CreateTrailMessage::LoadTrail => self.current_page = CurrentPage::LoadTrail,
+                        CreateTrailMessage::ReturnToJournal => self.current_page = CurrentPage::JournalView
+                    }
+                },
+                CurrentPage::CreateNewTrail => {
+                    let s = create_new_trail();
+                    match s.len() {
+                        0 => {}
+                        _ => {
+                            self.model.trail = Trail::new();
+                            self.model.trail.name = s;
+                            self.current_page = CurrentPage::TrailView;
+                        }
+                    }
+                },
+                CurrentPage::LoadTrail => {},
+                CurrentPage::TrailView => {
+                    match self.model.trail.name.len() {
+                        0 => self.current_page = CurrentPage::SelectCreateTrail,
+                        _ => {
+                            display_trail(&self.model.trail);
+                            todo!();
+                        }
+                    }
+                }
+                CurrentPage::TrailEditDescription => {
+                    self.model.trail.description =
+                        edit_trail_description(&self.model.trail.description);
+                    self.current_page = CurrentPage::TrailView;
+                }
+                CurrentPage::TrailAddHop => {
+                    let (name, desc) = add_trail_hop();
+                    match name.len() {
+                        0 => {}
+                        _ => match self.model.trail.hops.binary_search(&(name.clone(), desc.clone())) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                self.model.trail.hops.push((name, desc));
+                            }
+                        },
+                    }
+                    self.current_page = CurrentPage::TrailView;
+                }
                 CurrentPage::SaveError(cp) => {
                     let err = match **cp {
                         CurrentPage::NoteView => "note",

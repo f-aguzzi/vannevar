@@ -80,7 +80,6 @@ impl Journal {
             pages: Vec::new(),
         }
     }
-
     pub fn from_str(name: &str, text: &str) -> Result<Journal, FileError> {
         let parts = text.split_once("---");
         match parts {
@@ -109,7 +108,8 @@ impl Journal {
         for l in &self.pages {
             stringified_body.push_str(&format!("[{}]\n", l));
         }
-        match fs::write(&self.date, stringified_body) {
+        let path = format!("journal/{}", &self.date);
+        match fs::write(path, stringified_body) {
             Ok(_) => true,
             Err(_) => false,
         }
