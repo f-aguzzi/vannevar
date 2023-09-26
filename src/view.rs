@@ -6,6 +6,7 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::{clear, color, cursor, scroll, style, terminal_size};
 
+
 use std::io::{stdin, stdout, Write};
 
 use crate::lib::{Journal, Note, Trail};
@@ -298,11 +299,15 @@ pub fn display_note(page: &Note) -> Message {
 }
 
 pub enum TrailMessage {
-    ShowTrail,
     SelectLink,
+    MainMenu,
+    Quit,
+    EditDescription,
+    AddLink,
+    RemoveLink,
 }
 
-pub fn display_trail(page: &Trail) {
+pub fn display_trail(page: &Trail) -> TrailMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -339,13 +344,15 @@ pub fn display_trail(page: &Trail) {
 
     stdout.flush().unwrap();
 
+    let mut base_offset = 7 + page.description.chars().count() as u16 / terminal_size().unwrap().0;
+
     for (i, x) in page.hops.iter().enumerate() {
-        let line_number = (x.1.len() + x.0.len()) as u16 / terminal_size().unwrap().0;
+        let line_number = 3 + (10 + 5 + x.1.len() + x.0.len()) as u16 / terminal_size().unwrap().0;
 
         write!(
             stdout,
             "{goto}{bold}Hop {number}:{reset_style} {name}",
-            goto = cursor::Goto(1, 3 + i as u16),
+            goto = cursor::Goto(1, base_offset),
             bold = style::Bold,
             reset_style = style::Reset,
             number = i,
@@ -355,22 +362,43 @@ pub fn display_trail(page: &Trail) {
 
         write!(
             stdout,
-            "{goto}{bold}Description: {desc}{reset_style}",
-            goto = cursor::Goto(1, 5 + i as u16),
+            "{goto}{bold}Description:{reset_style} {desc}",
+            goto = cursor::Goto(1, base_offset + 1 + (x.0.len() as u16 ) / terminal_size().unwrap().0),
             bold = style::Bold,
             reset_style = style::Reset,
             desc = x.1
         )
         .unwrap();
+
+    base_offset += line_number;
     }
 
     stdout.flush().unwrap();
 
     for k in stdin.keys() {
         match k.unwrap() {
+            Key::Char(c) => match c {
+                'l' | 'L' => return TrailMessage::SelectLink,
+                'm' | 'M' => return TrailMessage::MainMenu,
+                'q' | 'Q' => return TrailMessage::Quit,
+                'd' | 'D' => return TrailMessage::EditDescription,
+                'e' | 'E' => return TrailMessage::AddLink,
+                'r' | 'R' => return TrailMessage::RemoveLink,
+                _ => {}
+            },
+            Key::Down => {
+                write!(stdout, "{}", scroll::Down(1)).unwrap();
+                //stdout.flush().unwrap();
+            },
+            Key::Up => {
+                write!(stdout, "{}", scroll::Up(1)).unwrap();
+                //stdout.flush().unwrap();
+            }
             _ => {}
         }
     }
+
+    TrailMessage::Quit
 }
 
 pub enum CreateTrailMessage {
@@ -899,11 +927,16 @@ pub fn create_new_trail() -> String {
 }
 
 pub fn edit_trail_description(desc: &String) -> String {
-    edit_journal_description(desc)
+    text_editor(desc)
+}
+
+enum TrailHopState {
+    Name,
+    Description,
+    End,
 }
 
 pub fn add_trail_hop() -> (String, String) {
-    /*
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -939,14 +972,24 @@ pub fn add_trail_hop() -> (String, String) {
     stdout.flush().unwrap();
 
     let mut name_buf = String::new();
+    let mut desc_buf = String::new();
 
     let keys = stdin.keys();
+    let mut current_state = TrailHopState::Name;
 
     for k in keys.into_iter() {
         match k.unwrap() {
             Key::Char(c) => match c {
-                '\n' => break,
-                _ => name_buf.push(c),
+                '\n' => match current_state {
+                    TrailHopState::Name => current_state = TrailHopState::Description,
+                    TrailHopState::Description => current_state = TrailHopState::End,
+                    TrailHopState::End => break,
+                },
+                _ => match current_state {
+                    TrailHopState::Name => name_buf.push(c),
+                    TrailHopState::Description => desc_buf.push(c),
+                    TrailHopState::End => {}
+                },
             },
             Key::Backspace => {
                 name_buf.pop();
@@ -955,77 +998,44 @@ pub fn add_trail_hop() -> (String, String) {
             _ => {}
         }
 
-        write!(
-            stdout,
-            "{goto}{bold}Hop name: {reset}{name}",
-            // Goto the cell.
-            goto = cursor::Goto(
-                terminal_size().unwrap().0 / 2 - 13,
-                terminal_size().unwrap().1 / 2 + 2
-            ),
-            bold = style::Bold,
-            reset = style::Reset,
-            name = name_buf
-        )
-        .unwrap();
+        match current_state {
+            TrailHopState::Name => {
+                write!(
+                    stdout,
+                    "{goto}{bold}Hop name: {reset}{name}",
+                    // Goto the cell.
+                    goto = cursor::Goto(
+                        terminal_size().unwrap().0 / 2 - 13,
+                        terminal_size().unwrap().1 / 2 + 2
+                    ),
+                    bold = style::Bold,
+                    reset = style::Reset,
+                    name = name_buf
+                )
+                .unwrap();
 
-        write!(stdout, "{}", clear::AfterCursor).unwrap();
-
-        stdout.flush().unwrap();
-    }
-
-    write!(
-        stdout,
-        "{goto}{bold}Hop description: {reset}",
-        // Goto the cell.
-        goto = cursor::Goto(
-            terminal_size().unwrap().0 / 2 - 13,
-            terminal_size().unwrap().1 / 2 + 2
-        ),
-        bold = style::Bold,
-        reset = style::Reset
-    )
-    .unwrap();
-
-    stdout.flush().unwrap();
-
-    let mut desc_buf = String::new();
-
-
-    for k in keys {
-        match k.unwrap() {
-            Key::Char(c) => match c {
-                '\n' => break,
-                _ => desc_buf.push(c),
-            },
-            Key::Backspace => {
-                desc_buf.pop();
+                write!(stdout, "{}", clear::AfterCursor).unwrap();
             }
-            Key::Esc => return (String::new(), String::new()),
+            TrailHopState::Description => {
+                write!(
+                    stdout,
+                    "{goto}{bold}Hop description: {reset}{description}",
+                    // Goto the cell.
+                    goto = cursor::Goto(
+                        terminal_size().unwrap().0 / 2 - 13,
+                        terminal_size().unwrap().1 / 2 + 2
+                    ),
+                    bold = style::Bold,
+                    reset = style::Reset,
+                    description = desc_buf
+                )
+                .unwrap();
+            }
             _ => {}
         }
-
-        write!(
-            stdout,
-            "{goto}{bold}Hop description: {reset}{desc}",
-            // Goto the cell.
-            goto = cursor::Goto(
-                terminal_size().unwrap().0 / 2 - 16,
-                terminal_size().unwrap().1 / 2 + 2
-            ),
-            bold = style::Bold,
-            reset = style::Reset,
-            desc = desc_buf
-        )
-        .unwrap();
-
-        write!(stdout, "{}", clear::AfterCursor).unwrap();
 
         stdout.flush().unwrap();
     }
 
     (name_buf, desc_buf)
-    */
-
-    todo!();
 }

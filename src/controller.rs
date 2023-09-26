@@ -192,8 +192,28 @@ impl Controller {
                 CurrentPage::TrailView => match self.model.trail.name.len() {
                     0 => self.current_page = CurrentPage::SelectCreateTrail,
                     _ => {
-                        display_trail(&self.model.trail);
-                        todo!();
+                        match display_trail(&self.model.trail) {
+                            TrailMessage::AddLink => self.current_page = CurrentPage::TrailAddHop,
+                            TrailMessage::SelectLink => {
+                                let names = self
+                                    .model
+                                    .trail
+                                    .hops
+                                    .clone()
+                                    .into_iter()
+                                    .map(|x| x.0)
+                                    .collect();
+                                self.current_page = CurrentPage::SelectLink(names)
+                            }
+                            TrailMessage::Quit => break,
+                            TrailMessage::MainMenu => self.current_page = CurrentPage::MainMenu,
+                            TrailMessage::RemoveLink => {
+                                todo!()
+                            }
+                            TrailMessage::EditDescription => {
+                                self.current_page = CurrentPage::TrailEditDescription
+                            }
+                        }
                     }
                 },
                 CurrentPage::TrailEditDescription => {
