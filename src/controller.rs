@@ -62,17 +62,18 @@ impl Controller {
                 },
                 CurrentPage::JournalView => {
                     match display_journal(&self.model.journal_page) {
-                        Message::EditDescription => {
+                        JournalMessage::EditDescription => {
                             self.current_page = CurrentPage::JournalEditDescription
                         }
-                        Message::EditLinks => self.current_page = CurrentPage::JournalAddLink,
-                        Message::Menu => self.current_page = CurrentPage::MainMenu,
-                        Message::SelectLinks => {
+                        JournalMessage::EditLinks => {
+                            self.current_page = CurrentPage::JournalAddLink
+                        }
+                        JournalMessage::Menu => self.current_page = CurrentPage::MainMenu,
+                        JournalMessage::SelectLinks => {
                             self.current_page =
                                 CurrentPage::SelectLink(self.model.journal_page.pages.to_owned())
                         }
-                        Message::Exit => break,
-                        _ => {}
+                        JournalMessage::Exit => break,
                     };
                     match self.model.journal_page.save() {
                         true => {}
@@ -101,9 +102,9 @@ impl Controller {
                     self.current_page = CurrentPage::JournalView
                 }
                 CurrentPage::SelectLink(v) => match link_menu(v) {
-                    Message::Exit => break,
-                    Message::Back => self.current_page = CurrentPage::JournalView,
-                    Message::GotoLink(l) => {
+                    LinkMessage::Exit => break,
+                    LinkMessage::Back => self.current_page = CurrentPage::JournalView,
+                    LinkMessage::GotoLink(l) => {
                         match str::parse::<usize>(&l) {
                             Ok(i) => match v.get(i) {
                                 Some(path) => match load_note(path) {
@@ -129,22 +130,20 @@ impl Controller {
                             Err(_) => {}
                         };
                     }
-                    _ => {}
                 },
                 CurrentPage::NoteView => {
                     match display_note(&self.model.note) {
-                        Message::Edit => self.current_page = CurrentPage::NoteEdit,
-                        Message::SelectLinks => {
+                        NoteMessage::Edit => self.current_page = CurrentPage::NoteEdit,
+                        NoteMessage::SelectLinks => {
                             self.current_page =
                                 CurrentPage::SelectLink(self.model.note.links.to_owned())
                         }
-                        Message::Menu => self.current_page = CurrentPage::MainMenu,
-                        Message::Back => self.current_page = CurrentPage::JournalView,
-                        Message::Exit => {
+                        NoteMessage::Menu => self.current_page = CurrentPage::MainMenu,
+                        NoteMessage::Back => self.current_page = CurrentPage::JournalView,
+                        NoteMessage::Exit => {
                             self.current_page = CurrentPage::MainMenu;
                             return;
                         }
-                        _ => {}
                     }
                     match self.model.note.save() {
                         true => {
@@ -205,13 +204,22 @@ impl Controller {
                                     .collect();
                                 self.current_page = CurrentPage::SelectLink(names)
                             }
-                            TrailMessage::Quit => break,
+                            TrailMessage::Quit => {
+                                break;
+                            }
                             TrailMessage::MainMenu => self.current_page = CurrentPage::MainMenu,
                             TrailMessage::RemoveLink => {
                                 todo!()
                             }
                             TrailMessage::EditDescription => {
                                 self.current_page = CurrentPage::TrailEditDescription
+                            }
+                        }
+                        match self.model.trail.save() {
+                            true => {}
+                            false => {
+                                self.current_page =
+                                    CurrentPage::SaveError(Box::new(self.current_page.clone()))
                             }
                         }
                     }

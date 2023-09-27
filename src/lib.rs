@@ -38,7 +38,7 @@ impl Note {
     }
     pub fn parse_links(&mut self) {
         let link_matcher = regex!(r"\[(.+?)\]");
-        let mut matches: Vec<_> = link_matcher
+        let matches: Vec<_> = link_matcher
             .find_iter(&self.text)
             .map(|s| String::from(s.as_str()))
             .map(|s| {
@@ -191,6 +191,27 @@ impl Trail {
                 hops: t,
             }),
             Err(e) => Err(e),
+        }
+    }
+    pub fn to_str(&self) -> String {
+        let mut buffer = String::new();
+        buffer.push_str(&format!("{}\n---\n", self.description));
+
+        let hops: String = self
+            .hops
+            .iter()
+            .map(|(link, desc)| format!("[{}]\n({})\n->\n", link, desc))
+            .collect();
+
+        buffer.push_str(&hops);
+
+        buffer
+    }
+    pub fn save(&self) -> bool {
+        let path = format!("trails/{}", &self.name);
+        match fs::write(path, &self.to_str()) {
+            Ok(_) => true,
+            Err(_) => false,
         }
     }
 }

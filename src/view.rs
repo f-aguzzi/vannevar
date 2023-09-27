@@ -6,23 +6,9 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::{clear, color, cursor, scroll, style, terminal_size};
 
-
 use std::io::{stdin, stdout, Write};
 
 use crate::lib::{Journal, Note, Trail};
-
-pub enum Message {
-    Save(String),
-    EditDescription,
-    AddPage,
-    SelectLinks,
-    EditLinks,
-    GotoLink(String),
-    Menu,
-    Exit,
-    Back,
-    Edit,
-}
 
 pub fn start_page() {
     let mut stdout = stdout().into_raw_mode().unwrap();
@@ -66,7 +52,15 @@ pub fn start_page() {
     }
 }
 
-pub fn display_journal(page: &Journal) -> Message {
+pub enum JournalMessage {
+    EditDescription,
+    EditLinks,
+    Menu,
+    SelectLinks,
+    Exit,
+}
+
+pub fn display_journal(page: &Journal) -> JournalMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -105,7 +99,7 @@ pub fn display_journal(page: &Journal) -> Message {
 
     write!(
         stdout,
-        "{goto}{bold}Pages created today:{reset_style}{goto}",
+        "{goto}{bold}Pages created or edited today:{reset_style}{goto}",
         goto = cursor::Goto(1, 6 + pos),
         bold = style::Bold,
         reset_style = style::Reset,
@@ -127,18 +121,18 @@ pub fn display_journal(page: &Journal) -> Message {
     for k in stdin.keys() {
         match k.unwrap() {
             Key::Char(c) => match c {
-                'd' | 'D' => return Message::EditDescription,
-                'e' | 'E' => return Message::EditLinks,
-                'm' | 'M' => return Message::Menu,
-                'l' | 'L' => return Message::SelectLinks,
-                'q' | 'Q' => return Message::Exit,
+                'd' | 'D' => return JournalMessage::EditDescription,
+                'e' | 'E' => return JournalMessage::EditLinks,
+                'm' | 'M' => return JournalMessage::Menu,
+                'l' | 'L' => return JournalMessage::SelectLinks,
+                'q' | 'Q' => return JournalMessage::Exit,
                 _ => {}
             },
             _ => {}
         }
     }
 
-    Message::Exit
+    JournalMessage::Exit
 }
 
 pub fn select_create_journal() -> bool {
@@ -184,7 +178,13 @@ pub fn select_create_journal() -> bool {
     choice
 }
 
-pub fn link_menu(list: &Vec<String>) -> Message {
+pub enum LinkMessage {
+    Exit,
+    Back,
+    GotoLink(String),
+}
+
+pub fn link_menu(list: &Vec<String>) -> LinkMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -232,28 +232,36 @@ pub fn link_menu(list: &Vec<String>) -> Message {
 
     stdout.flush().unwrap();
 
-    let mut StrBuf = String::new();
+    let mut str_buf = String::new();
 
     for c in stdin.keys() {
         match c.unwrap() {
             Key::Char(c) => match c {
                 '\n' => break,
-                'q' | 'Q' => return Message::Exit,
+                'q' | 'Q' => return LinkMessage::Exit,
                 _ => {
-                    StrBuf.push(c);
+                    str_buf.push(c);
                     write!(stdout, "{}", c).unwrap();
                     stdout.flush().unwrap();
                 }
             },
-            Key::Esc => return Message::Back,
+            Key::Esc => return LinkMessage::Back,
             _ => {}
         }
     }
 
-    Message::GotoLink(StrBuf)
+    LinkMessage::GotoLink(str_buf)
 }
 
-pub fn display_note(page: &Note) -> Message {
+pub enum NoteMessage {
+    Edit,
+    SelectLinks,
+    Menu,
+    Exit,
+    Back,
+}
+
+pub fn display_note(page: &Note) -> NoteMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
@@ -284,18 +292,18 @@ pub fn display_note(page: &Note) -> Message {
     for k in stdin.keys() {
         match k.unwrap() {
             Key::Char(c) => match c {
-                'e' | 'E' => return Message::Edit,
-                'l' | 'L' => return Message::SelectLinks,
-                'm' | 'M' => return Message::Menu,
-                'q' | 'Q' => return Message::Exit,
+                'e' | 'E' => return NoteMessage::Edit,
+                'l' | 'L' => return NoteMessage::SelectLinks,
+                'm' | 'M' => return NoteMessage::Menu,
+                'q' | 'Q' => return NoteMessage::Exit,
                 _ => {}
             },
-            Key::Esc => return Message::Back,
+            Key::Esc => return NoteMessage::Back,
             _ => {}
         }
     }
 
-    Message::Back
+    NoteMessage::Back
 }
 
 pub enum TrailMessage {
@@ -363,14 +371,17 @@ pub fn display_trail(page: &Trail) -> TrailMessage {
         write!(
             stdout,
             "{goto}{bold}Description:{reset_style} {desc}",
-            goto = cursor::Goto(1, base_offset + 1 + (x.0.len() as u16 ) / terminal_size().unwrap().0),
+            goto = cursor::Goto(
+                1,
+                base_offset + 1 + (x.0.len() as u16) / terminal_size().unwrap().0
+            ),
             bold = style::Bold,
             reset_style = style::Reset,
             desc = x.1
         )
         .unwrap();
 
-    base_offset += line_number;
+        base_offset += line_number;
     }
 
     stdout.flush().unwrap();
@@ -389,7 +400,7 @@ pub fn display_trail(page: &Trail) -> TrailMessage {
             Key::Down => {
                 write!(stdout, "{}", scroll::Down(1)).unwrap();
                 //stdout.flush().unwrap();
-            },
+            }
             Key::Up => {
                 write!(stdout, "{}", scroll::Up(1)).unwrap();
                 //stdout.flush().unwrap();
@@ -600,13 +611,13 @@ pub fn text_editor(text: &String) -> String {
                     let mut part1: String = new_text
                         .chars()
                         .enumerate()
-                        .filter(|(i, s)| *i < pointer)
+                        .filter(|(i, _s)| *i < pointer)
                         .map(|(_i, s)| s)
                         .collect();
                     let part2: String = new_text
                         .chars()
                         .enumerate()
-                        .filter(|(i, s)| *i >= pointer)
+                        .filter(|(i, _s)| *i >= pointer)
                         .map(|(_i, s)| s)
                         .collect();
                     part1.push(c);

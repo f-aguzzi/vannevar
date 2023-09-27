@@ -154,3 +154,21 @@ The controller also contains the message enums to communicate with the view.
 ## View
 
 The view will be a CLI.
+
+# Things yet to fix
+
+
+Upcoming refactors:
+
+- link dupliction control
+- lib -> model
+
+Other features to implement:
+
+- file deletion
+- seeing old journal pages
+
+Bugs:
+
+- text editor doesn't display newlines
+- missing note and trail menus
