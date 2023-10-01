@@ -47,10 +47,13 @@ impl Controller {
                         0 => self.current_page = CurrentPage::CreateNewJournal,
                         _ => self.current_page = CurrentPage::JournalView,
                     },
-                    MenuOption::Notes => {}
+                    MenuOption::LoadJournal => {todo!()},
+                    MenuOption::Notes => {todo!()},
+                    MenuOption::LoadCreateNote => {todo!()},
                     MenuOption::Trails => {
                         self.current_page = CurrentPage::TrailView;
-                    }
+                    },
+                    MenuOption::LoadCreateTrail => {todo!()}
                     MenuOption::Quit => return,
                 },
                 CurrentPage::CreateNewJournal => match select_create_journal() {

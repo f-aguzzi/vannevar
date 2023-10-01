@@ -472,8 +472,11 @@ pub fn select_create_trail() -> CreateTrailMessage {
 
 pub enum MenuOption {
     Journal,
+    LoadJournal,
     Notes,
+    LoadCreateNote,
     Trails,
+    LoadCreateTrail,
     Quit,
 }
 
@@ -488,7 +491,7 @@ pub fn display_menu() -> MenuOption {
         cursor = cursor::Hide,
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 5,
-            terminal_size().unwrap().1 / 2 - 4
+            terminal_size().unwrap().1 / 2 - 8
         ),
         red = color::Fg(color::Red),
         bold = style::Bold,
@@ -503,7 +506,7 @@ pub fn display_menu() -> MenuOption {
         // Goto the cell.
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 16,
-            terminal_size().unwrap().1 / 2 - 2
+            terminal_size().unwrap().1 / 2 - 6
         ),
         white = color::Fg(color::White),
         reset = color::Fg(color::Reset)
@@ -516,6 +519,32 @@ pub fn display_menu() -> MenuOption {
         // Goto the cell.
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 12,
+            terminal_size().unwrap().1 / 2 - 4
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(o) Open old journal pages.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 12,
+            terminal_size().unwrap().1 / 2 - 2
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(n) Open the current note.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
             terminal_size().unwrap().1 / 2
         ),
         white = color::Fg(color::White),
@@ -525,7 +554,7 @@ pub fn display_menu() -> MenuOption {
 
     write!(
         stdout,
-        "{goto}{white}(n) Open or write a note.{reset}",
+        "{goto}{white}(N) Create or load a note.{reset}",
         // Goto the cell.
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 13,
@@ -538,7 +567,20 @@ pub fn display_menu() -> MenuOption {
 
     write!(
         stdout,
-        "{goto}{white}(t) Open or write a trail.{reset}",
+        "{goto}{white}(t) Open the current trail.{reset}",
+        // Goto the cell.
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 13,
+            terminal_size().unwrap().1 / 2 + 4
+        ),
+        white = color::Fg(color::White),
+        reset = color::Fg(color::Reset)
+    )
+    .unwrap();
+
+    write!(
+        stdout,
+        "{goto}{white}(T) Create or load a trail.{reset}",
         // Goto the cell.
         goto = cursor::Goto(
             terminal_size().unwrap().0 / 2 - 13,
@@ -567,9 +609,12 @@ pub fn display_menu() -> MenuOption {
     for k in stdin.keys() {
         match k.unwrap() {
             Key::Char(c) => match c {
-                'j' | 'J' => return MenuOption::Journal,
-                'n' | 'N' => return MenuOption::Notes,
-                't' | 'T' => return MenuOption::Trails,
+                'j' => return MenuOption::Journal,
+                'J' => return MenuOption::LoadJournal,
+                'n' => return MenuOption::Notes,
+                'N' => return MenuOption::LoadCreateNote,
+                't' => return MenuOption::Trails,
+                'T' => return MenuOption::LoadCreateTrail,
                 'q' | 'Q' => return MenuOption::Quit,
                 _ => {}
             },

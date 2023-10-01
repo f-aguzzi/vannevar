@@ -171,4 +171,11 @@ Other features to implement:
 Bugs:
 
 - text editor doesn't display newlines
-- missing note and trail menus
+
+# Backlinks
+
+Here's how to implement backlinks:
+
+- get a list of all pages
+- scan each file
+- search for the file name between square brackets
