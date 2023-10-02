@@ -269,7 +269,7 @@ pub fn load_note(path: &str) -> Result<Note, FileError> {
     Ok(Note::from_str(path, file_string))
 }
 
-fn load_journal_page(path: &str) -> Result<Journal, FileError> {
+pub fn load_journal_page(path: &str) -> Result<Journal, FileError> {
     let file: Vec<u8> = match fs::read(path) {
         Ok(f) => f,
         Err(_) => return Err(FileError::ReadError),
@@ -284,7 +284,7 @@ fn load_journal_page(path: &str) -> Result<Journal, FileError> {
 }
 
 // ADD EMPTY FILE ERROR TYPE
-fn list_files(path: &str) -> Result<Vec<String>, FileError> {
+pub fn list_files(path: &str) -> Result<Vec<String>, FileError> {
     let files_list = match fs::read_dir(path) {
         Err(e) => return Err(FileError::ReadError),
         Ok(dir) => dir,

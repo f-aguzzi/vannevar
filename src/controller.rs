@@ -1,4 +1,4 @@
-use crate::lib::{load_note, FileError, Journal, Model, Note, Trail};
+use crate::lib::{load_note, load_journal_page, FileError, Journal, Model, Note, Trail, list_files};
 use crate::view::*;
 
 #[derive(Clone)]
@@ -7,6 +7,7 @@ pub enum CurrentPage {
     MainMenu,
     CreateNewJournal,
     JournalView,
+    JournalViewReadOnly,
     JournalEditDescription,
     JournalAddLink,
     SelectLink(Vec<String>),
@@ -19,6 +20,7 @@ pub enum CurrentPage {
     TrailEditDescription,
     TrailAddHop,
     SaveError(Box<CurrentPage>),
+    UnexpectedError(String),
 }
 pub struct Controller {
     model: Model,
@@ -47,7 +49,38 @@ impl Controller {
                         0 => self.current_page = CurrentPage::CreateNewJournal,
                         _ => self.current_page = CurrentPage::JournalView,
                     },
-                    MenuOption::LoadJournal => {todo!()},
+                    MenuOption::LoadJournal => {
+                        match list_files("../journal") {
+                            Ok(l) => {
+                                match link_menu(&l) {
+                                    LinkMessage::Exit => break,
+                                    LinkMessage::Back => self.current_page = CurrentPage::JournalView,
+                                    LinkMessage::GotoLink(link) => {
+                                        match str::parse::<usize>(&link) {
+                                            Ok(i) => match l.get(i) {
+                                                Some(path) => match load_journal_page(path) {
+                                                    Ok(j) => {
+                                                        self.model.journal_page = j;
+                                                        self.current_page = CurrentPage::JournalViewReadOnly
+                                                    }
+                                                    Err(e) => match e {
+                                                        FileError::ReadError => {
+                                                            self.current_page = CurrentPage::UnexpectedError("The selected journal page does not exist.".to_string())
+                                                        },
+                                                        FileError::FormatError => {}
+                                                        FileError::EmptyFileError => {}
+                                                    },
+                                                },
+                                                None => {}
+                                            },
+                                            Err(_) => {}
+                                        };
+                                    }
+                                }
+                            },
+                            Err(_) => self.current_page = CurrentPage::UnexpectedError("Could not find any journal pages.".to_string())
+                        }
+                    },
                     MenuOption::Notes => {todo!()},
                     MenuOption::LoadCreateNote => {todo!()},
                     MenuOption::Trails => {
@@ -85,12 +118,44 @@ impl Controller {
                                 CurrentPage::SaveError(Box::new(self.current_page.clone()))
                         }
                     }
-                }
+                },
+                CurrentPage::JournalViewReadOnly => {
+                    match display_journal(&self.model.journal_page) {
+                        JournalMessage::EditDescription => {},
+                        JournalMessage::EditLinks => {},
+                        JournalMessage::Menu => {
+                            match load_journal_page(&self.model.current_date) {
+                                Ok(j) => {
+                                    self.model.journal_page = j;
+                                    self.current_page = CurrentPage::MainMenu;
+                                },
+                                Err(_) => self.current_page = CurrentPage::CreateNewJournal
+                            }
+                        },
+                        JournalMessage::SelectLinks => {
+                            match load_journal_page(&self.model.current_date) {
+                                Ok(j) => {
+                                    self.model.journal_page = j;
+                                    self.current_page = CurrentPage::SelectLink(self.model.journal_page.pages.to_owned());
+                                },
+                                Err(_) => self.current_page = CurrentPage::CreateNewJournal
+                            }
+                        }
+                        JournalMessage::Exit => break,
+                    };
+                    match self.model.journal_page.save() {
+                        true => {}
+                        false => {
+                            self.current_page =
+                                CurrentPage::SaveError(Box::new(self.current_page.clone()))
+                        }
+                    }
+                },
                 CurrentPage::JournalEditDescription => {
                     self.model.journal_page.description =
                         edit_journal_description(&self.model.journal_page.description);
                     self.current_page = CurrentPage::JournalView;
-                }
+                },
                 CurrentPage::JournalAddLink => {
                     let s = add_journal_link();
                     match s.len() {
@@ -103,7 +168,7 @@ impl Controller {
                         },
                     }
                     self.current_page = CurrentPage::JournalView
-                }
+                },
                 CurrentPage::SelectLink(v) => match link_menu(v) {
                     LinkMessage::Exit => break,
                     LinkMessage::Back => self.current_page = CurrentPage::JournalView,
@@ -169,7 +234,7 @@ impl Controller {
                     let note_text = edit_note(&self.model.note.text);
                     self.model.note = Note::from_str(&self.model.note.title, note_text);
                     self.current_page = CurrentPage::NoteView;
-                }
+                },
                 CurrentPage::SelectCreateTrail => match select_create_trail() {
                     CreateTrailMessage::CreateTrail => {
                         self.current_page = CurrentPage::CreateNewTrail
@@ -189,8 +254,8 @@ impl Controller {
                             self.current_page = CurrentPage::TrailView;
                         }
                     }
-                }
-                CurrentPage::LoadTrail => {}
+                },
+                CurrentPage::LoadTrail => {},
                 CurrentPage::TrailView => match self.model.trail.name.len() {
                     0 => self.current_page = CurrentPage::SelectCreateTrail,
                     _ => {
@@ -231,7 +296,7 @@ impl Controller {
                     self.model.trail.description =
                         edit_trail_description(&self.model.trail.description);
                     self.current_page = CurrentPage::TrailView;
-                }
+                },
                 CurrentPage::TrailAddHop => {
                     let (name, desc) = add_trail_hop();
                     match name.len() {
@@ -249,7 +314,7 @@ impl Controller {
                         },
                     }
                     self.current_page = CurrentPage::TrailView;
-                }
+                },
                 CurrentPage::SaveError(cp) => {
                     let err = match **cp {
                         CurrentPage::NoteView => "note",
@@ -259,6 +324,12 @@ impl Controller {
                     };
                     save_error(err);
                     self.current_page = *cp.clone();
+                },
+                CurrentPage::UnexpectedError(s) => {
+                    match display_error(s) {
+                        DisplayErrorMessage::Menu => self.current_page = CurrentPage::MainMenu,
+                        DisplayErrorMessage::Exit => break
+                    }
                 }
             }
         }

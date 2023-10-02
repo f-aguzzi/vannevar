@@ -610,7 +610,7 @@ pub fn display_menu() -> MenuOption {
         match k.unwrap() {
             Key::Char(c) => match c {
                 'j' => return MenuOption::Journal,
-                'J' => return MenuOption::LoadJournal,
+                'o' => return MenuOption::LoadJournal,
                 'n' => return MenuOption::Notes,
                 'N' => return MenuOption::LoadCreateNote,
                 't' => return MenuOption::Trails,
@@ -1094,4 +1094,54 @@ pub fn add_trail_hop() -> (String, String) {
     }
 
     (name_buf, desc_buf)
+}
+
+
+pub enum DisplayErrorMessage {
+    Menu,
+    Exit
+}
+
+pub fn display_error(message: &str) -> DisplayErrorMessage {
+    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdin = stdin();
+
+    let line_number = message.chars().count() as u16 / terminal_size().unwrap().0;
+
+    write!(stdout, "{clear}{red}{goto}{bold}ERROR!{reset_color}{reset_font}",
+        clear = clear::All,
+        goto = cursor::Goto(
+            terminal_size().unwrap().0 / 2 - 3,
+            1
+        ),
+        red = color::Fg(color::Red),
+        bold = style::Bold,
+        reset_color = color::Fg(color::Reset),
+        reset_font = style::Reset,
+    ).unwrap();
+
+    write!(stdout, "{goto}{text}",
+        goto = cursor::Goto(0,3),
+        text = message
+    ).unwrap();
+
+    write!(stdout, "{goto1}(q) Exit{goto2}(m) Menu",
+        goto1 = cursor::Goto(terminal_size().unwrap().0 / 2 - 4, 5 + line_number),
+        goto2 = cursor::Goto(terminal_size().unwrap().0 / 2 - 4, 7 + line_number)
+    ).unwrap();
+
+    stdout.flush().unwrap();
+
+    for k in stdin.keys() {
+        match k.unwrap() {
+            Key::Char(c) => match c {
+                'm' | 'M' => return DisplayErrorMessage::Menu,
+                'q' | 'Q' => return DisplayErrorMessage::Exit,
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    return DisplayErrorMessage::Menu
 }
