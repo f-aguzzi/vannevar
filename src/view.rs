@@ -1096,10 +1096,9 @@ pub fn add_trail_hop() -> (String, String) {
     (name_buf, desc_buf)
 }
 
-
 pub enum DisplayErrorMessage {
     Menu,
-    Exit
+    Exit,
 }
 
 pub fn display_error(message: &str) -> DisplayErrorMessage {
@@ -1108,27 +1107,33 @@ pub fn display_error(message: &str) -> DisplayErrorMessage {
 
     let line_number = message.chars().count() as u16 / terminal_size().unwrap().0;
 
-    write!(stdout, "{clear}{red}{goto}{bold}ERROR!{reset_color}{reset_font}",
+    write!(
+        stdout,
+        "{clear}{red}{goto}{bold}ERROR!{reset_color}{reset_font}",
         clear = clear::All,
-        goto = cursor::Goto(
-            terminal_size().unwrap().0 / 2 - 3,
-            1
-        ),
+        goto = cursor::Goto(terminal_size().unwrap().0 / 2 - 3, 1),
         red = color::Fg(color::Red),
         bold = style::Bold,
         reset_color = color::Fg(color::Reset),
         reset_font = style::Reset,
-    ).unwrap();
+    )
+    .unwrap();
 
-    write!(stdout, "{goto}{text}",
-        goto = cursor::Goto(0,3),
+    write!(
+        stdout,
+        "{goto}{text}",
+        goto = cursor::Goto(0, 3),
         text = message
-    ).unwrap();
+    )
+    .unwrap();
 
-    write!(stdout, "{goto1}(q) Exit{goto2}(m) Menu",
+    write!(
+        stdout,
+        "{goto1}(q) Exit{goto2}(m) Menu",
         goto1 = cursor::Goto(terminal_size().unwrap().0 / 2 - 4, 5 + line_number),
         goto2 = cursor::Goto(terminal_size().unwrap().0 / 2 - 4, 7 + line_number)
-    ).unwrap();
+    )
+    .unwrap();
 
     stdout.flush().unwrap();
 
@@ -1143,5 +1148,5 @@ pub fn display_error(message: &str) -> DisplayErrorMessage {
         }
     }
 
-    return DisplayErrorMessage::Menu
+    return DisplayErrorMessage::Menu;
 }
