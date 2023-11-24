@@ -10,6 +10,13 @@ use std::io::{stdin, stdout, Write};
 
 use crate::lib::{Journal, Note, Trail};
 
+/**
+ # Start page
+ 
+ This view component is merely an introductory screen and has no other
+ purpose.
+*/
+
 pub fn start_page() {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
@@ -52,6 +59,13 @@ pub fn start_page() {
     }
 }
 
+/** 
+ # JournalMessage
+
+ This `enum` represents the messages that the `display-journal` view component
+ might send to the controller.
+ */
+
 pub enum JournalMessage {
     EditDescription,
     EditLinks,
@@ -59,6 +73,29 @@ pub enum JournalMessage {
     SelectLinks,
     Exit,
 }
+
+/**
+ # Display journal
+
+ This component represents the main interface of the journal mode. It presents
+ the current journal page (the one for the current day, by default).
+
+ It shows the following elements of the journal page:
+
+ - the date;
+ - the description;
+ - the pages created during the day.
+
+ It allows access to other pages:
+ - by pressing `d` or `D`, it opens the description editing menu;
+ - by pressing `e' or `E`, it opens a page to create new links;
+ - by pressing `m' or `M`, it goes back to the main menu;
+ - by pressing `l' or `L`, it opens the link jump menu;
+ - by pressing `q` or `Q`, it quits the application.
+
+ The Display journal view communicates with the controller through
+ [JournalMessage] messages.
+*/
 
 pub fn display_journal(page: &Journal) -> JournalMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
