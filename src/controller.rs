@@ -1,33 +1,51 @@
+/// # `controller` module
+///
+/// This program is built on an MVC pattern, and this module hosts the structs
+/// and functions that make up its controller.
+
 use crate::lib::{
-    list_files, load_journal_page, load_note, FileError, Journal, Model, Note, Trail,
+    list_files, load_journal_page, load_note, FileError, Journal, Model, Note, Trail, load_trail, TrailError
 };
 use crate::view::*;
 
+/// ## CurrentPage
+///
+///  This `enum` is a list of all possible pages that can be displayed to the
+///  user. Since the view can be seen as a state machine, these are all of its
+///  possible states.
+
+
 #[derive(Clone)]
 pub enum CurrentPage {
-    StartPage,
-    MainMenu,
-    CreateNewJournal,
-    JournalView,
-    JournalViewReadOnly,
-    JournalEditDescription,
-    JournalAddLink,
-    SelectLink(Vec<String>),
-    NoteView,
-    NoteEdit,
-    SelectCreateTrail,
-    CreateNewTrail,
-    LoadTrail,
-    TrailView,
-    TrailEditDescription,
-    TrailAddHop,
-    SaveError(Box<CurrentPage>),
-    UnexpectedError(String),
+    StartPage,  // Initial page of the application
+    MainMenu,   // Main menu
+    CreateNewJournal,   // Menu to choose whether or not to create a new journal page
+    JournalView,    // View mode for the journal page of the current day
+    JournalViewReadOnly,    // View mode (read-only) for old journal pages
+    JournalEditDescription, // Editor for the journal description
+    JournalAddLink, // Interface to create a new note and add it to the journal
+    SelectLink(Vec<String>),    // Menu to select a linked page from a list
+    NoteView,   // View mode for note pages
+    NoteEdit,   // Editor for the text in notes
+    SelectCreateTrail,  // Trail menu: select whether to create a new one or open an old one
+    CreateNewTrail, // Interface to create a new trail and give it a name
+    LoadTrail,  // Menu to select a loadable trail from a list
+    TrailView,  // View mode for trail pages
+    TrailEditDescription,   // Editor for the description of the currently opened trail
+    TrailAddHop,    // Interface to add a link to a note inside of a trail
+    SaveError(Box<CurrentPage>),    // Display an error message for failed saving procedures
+    UnexpectedError(String),    // Display an error message
 }
 pub struct Controller {
     model: Model,
     current_page: CurrentPage,
 }
+
+/// ## Controller
+///
+///  This is the state machine that controls the application. It runs on a loop
+///  and controls the branching between the possible states, described by the
+///  [CurrentPage] `enum`.
 
 impl Controller {
     pub fn new() -> Controller {
@@ -265,7 +283,55 @@ impl Controller {
                         }
                     }
                 }
-                CurrentPage::LoadTrail => {}
+                CurrentPage::LoadTrail => {
+                    match list_files("../journal") {
+                        Ok(list) => {
+                            match link_menu(&list) {
+                                LinkMessage::Exit => {},
+                                LinkMessage::Back => {},
+                                LinkMessage::GotoLink(link) => {
+                                    match str::parse::<usize>(&link) {
+                                        Ok(i) => match list.get(i) {
+                                            Some(path) => match load_trail(path) {
+                                                Ok(t) => {
+                                                    self.model.trail = t;
+                                                    self.current_page = CurrentPage::TrailView
+                                                }
+                                                Err(e) => match e {
+                                                    TrailError::BodyFormatError => {
+                                                        self.current_page = CurrentPage::UnexpectedError(String::from("The body of the selected trail is formatted incorrectly."))
+                                                    },
+                                                    TrailError::DescriptionError => {
+                                                        self.current_page = CurrentPage::UnexpectedError(String::from("The description of the selected trail is formatted incorrectly."))
+                                                    },
+                                                    TrailError::FileError(fe) => match fe {
+                                                        FileError::EmptyFileError => {
+                                                            self.model.trail = Trail::new();
+                                                            self.model.trail.name = String::from(path);
+                                                        },
+                                                        FileError::ReadError => {
+                                                            self.current_page = CurrentPage::UnexpectedError(String::from("Could not load trail from memory."))
+                                                        },
+                                                        FileError::FormatError => {
+                                                            self.current_page = CurrentPage::UnexpectedError(String::from("The trail file is corrupted."))
+                                                        }
+                                                    },
+                                                },
+                                            },
+                                            None => {
+                                                self.current_page = CurrentPage::UnexpectedError(String::from("The number you entered does not correspond to any valid option."))
+                                            }
+                                        },
+                                        Err(_) => {
+                                            self.current_page = CurrentPage::UnexpectedError(String::from("The input you entered is not valid."))
+                                        }
+                                    };
+                                }
+                            }
+                        },
+                        Err(_) => { self.current_page = CurrentPage::UnexpectedError(String::from("Trail loading error."))},
+                    }
+                }
                 CurrentPage::TrailView => match self.model.trail.name.len() {
                     0 => self.current_page = CurrentPage::SelectCreateTrail,
                     _ => {
@@ -296,8 +362,9 @@ impl Controller {
                         match self.model.trail.save() {
                             true => {}
                             false => {
+                                let boxed_page = Box::new(self.current_page.clone());
                                 self.current_page =
-                                    CurrentPage::SaveError(Box::new(self.current_page.clone()))
+                                    CurrentPage::SaveError(boxed_page)
                             }
                         }
                     }

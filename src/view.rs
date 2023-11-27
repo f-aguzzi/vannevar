@@ -1,3 +1,16 @@
+/// # `view` module
+///
+///  This module contains the UI code and is mostly composed of calls to the
+///  functions of the `termion` crate.
+///
+///  Like all UI code, it's messy.
+///
+///  *Since the program can't do much in case of a crash of the terminal emulator
+///  on which it is running, all the `termion` functions returning a `Result` are
+///  simply handled with `.unwrap()`. It's ugly but there's little to no utility
+///  in doing otherwise.*
+
+
 extern crate termion;
 
 use termion::cursor::DetectCursorPos;
@@ -10,12 +23,10 @@ use std::io::{stdin, stdout, Write};
 
 use crate::lib::{Journal, Note, Trail};
 
-/**
- # Start page
- 
- This view component is merely an introductory screen and has no other
- purpose.
-*/
+/// ## Start page
+///  
+///  This view component is merely an introductory screen and has no other
+///  purpose.
 
 pub fn start_page() {
     let mut stdout = stdout().into_raw_mode().unwrap();
@@ -59,13 +70,10 @@ pub fn start_page() {
     }
 }
 
-/** 
- # JournalMessage
-
- This `enum` represents the messages that the `display-journal` view component
- might send to the controller.
- */
-
+/// ## JournalMessage
+///
+///  This `enum` represents the messages that the `display-journal` view component
+///  might send to the controller.
 pub enum JournalMessage {
     EditDescription,
     EditLinks,
@@ -74,33 +82,32 @@ pub enum JournalMessage {
     Exit,
 }
 
-/**
- # Display journal
-
- This component represents the main interface of the journal mode. It presents
- the current journal page (the one for the current day, by default).
-
- It shows the following elements of the journal page:
-
- - the date;
- - the description;
- - the pages created during the day.
-
- It allows access to other pages:
- - by pressing `d` or `D`, it opens the description editing menu;
- - by pressing `e' or `E`, it opens a page to create new links;
- - by pressing `m' or `M`, it goes back to the main menu;
- - by pressing `l' or `L`, it opens the link jump menu;
- - by pressing `q` or `Q`, it quits the application.
-
- The Display journal view communicates with the controller through
- [JournalMessage] messages.
-*/
+/// ## Display journal
+///
+///  This component represents the main interface of the journal mode. It presents
+///  the current journal page (the one for the current day, by default).
+///
+///  It shows the following elements of the journal page:
+///
+///  - the date;
+///  - the description;
+///  - the pages created during the day.
+///
+///  It allows access to other pages:
+///  - by pressing `d` or `D`, it opens the description editing menu;
+///  - by pressing `e' or `E`, it opens a page to create new links;
+///  - by pressing `m' or `M`, it goes back to the main menu;
+///  - by pressing `l' or `L`, it opens the link jump menu;
+///  - by pressing `q` or `Q`, it quits the application.
+///
+///  The Display journal view communicates with the controller through
+///  [JournalMessage] messages.
 
 pub fn display_journal(page: &Journal) -> JournalMessage {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
 
+    // Write the date of the journal page
     write!(
         stdout,
         "{clear}{cursor}{goto}{red}{bold}{date}{reset_color}{reset_style}",
@@ -132,8 +139,10 @@ pub fn display_journal(page: &Journal) -> JournalMessage {
     )
     .unwrap();
 
+    // Calculate the cursor offset after writing the description
     let pos: u16 = page.description.len() as u16 / terminal_size().unwrap().0;
 
+    // Write the page list for the day
     write!(
         stdout,
         "{goto}{bold}Pages created or edited today:{reset_style}{goto}",
@@ -155,6 +164,7 @@ pub fn display_journal(page: &Journal) -> JournalMessage {
 
     stdout.flush().unwrap();
 
+    // Key event handler
     for k in stdin.keys() {
         match k.unwrap() {
             Key::Char(c) => match c {
@@ -171,6 +181,13 @@ pub fn display_journal(page: &Journal) -> JournalMessage {
 
     JournalMessage::Exit
 }
+
+
+/// ## Select create journal
+///
+///  This component is displayed when the user tries to open the journal page for
+///  the current day, and it doesn't exist. The user is faced with the choice of
+///  creating one, or going back.
 
 pub fn select_create_journal() -> bool {
     let mut stdout = stdout().into_raw_mode().unwrap();
@@ -201,6 +218,7 @@ pub fn select_create_journal() -> bool {
 
     let choice: bool = false;
 
+    // Key event handler
     for c in stdin.keys() {
         match c.unwrap() {
             Key::Char(c) => match c {
@@ -435,12 +453,12 @@ pub fn display_trail(page: &Trail) -> TrailMessage {
                 _ => {}
             },
             Key::Down => {
-                write!(stdout, "{}", scroll::Down(1)).unwrap();
-                //stdout.flush().unwrap();
+                write!(stdout, "{}{}", scroll::Down(1), cursor::Up(1)).unwrap();
+                stdout.flush().unwrap();
             }
             Key::Up => {
-                write!(stdout, "{}", scroll::Up(1)).unwrap();
-                //stdout.flush().unwrap();
+                write!(stdout, "{}{}", scroll::Up(1), cursor::Down(1)).unwrap();
+                stdout.flush().unwrap();
             }
             _ => {}
         }

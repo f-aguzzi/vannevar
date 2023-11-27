@@ -80,7 +80,7 @@ impl Journal {
             pages: Vec::new(),
         }
     }
-    pub fn from_str(name: &str, text: &str) -> Result<Journal, FileError> {
+    fn from_str(name: &str, text: &str) -> Result<Journal, FileError> {
         let parts = text.split_once("---");
         match parts {
             Some((desc, list)) => {
@@ -304,7 +304,7 @@ pub fn list_files(path: &str) -> Result<Vec<String>, FileError> {
 }
 
 // FIX ERROR HANDLING
-fn load_trail(path: &str) -> Result<Trail, TrailError> {
+pub fn load_trail(path: &str) -> Result<Trail, TrailError> {
     let file: Vec<u8> = match fs::read(path) {
         Ok(f) => f,
         Err(_) => return Err(TrailError::FileError(FileError::ReadError)),
